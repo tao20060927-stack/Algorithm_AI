@@ -25,7 +25,10 @@ using ai_player::Skill;
 using ai_player::kDirs;
 using ai_player::kInvalid;
 using ai_player::planAdventurePath;
-using ai_player::realtimeGreedyPath;
+using ai_player::GreedyCandidateDebug;
+using ai_player::GreedyRunResult;
+using ai_player::GreedyStepDebug;
+using ai_player::realtimeGreedyRun;
 using ai_player::scoreDelta;
 
 namespace {
@@ -95,6 +98,59 @@ Json observedCellsJson(const MazeData &data, const std::vector<std::vector<bool>
         }
     }
     return cells;
+}
+
+Json positionJson(Position pos)
+{
+    if (pos == kInvalid) return nullptr;
+    return {{"row", pos.first}, {"col", pos.second}};
+}
+
+Json greedyCandidateDebugJson(const GreedyCandidateDebug &candidate)
+{
+    return {{"localTarget", positionJson(candidate.localTarget)},
+            {"realTarget", positionJson(candidate.realTarget)},
+            {"tile", candidate.tile},
+            {"score", candidate.score},
+            {"deltaR", candidate.deltaR},
+            {"Iproxy", candidate.informationProxy},
+            {"tailGain", candidate.tailGain},
+            {"qEff", candidate.qEff},
+            {"pathLen", candidate.pathLength},
+            {"marginPenalty", candidate.marginPenalty},
+            {"projectedResource", candidate.projectedResource},
+            {"selected", candidate.selected}};
+}
+
+Json greedyStepDebugJson(const GreedyStepDebug &step)
+{
+    Json candidates = Json::array();
+    for (const auto &candidate : step.candidates) {
+        candidates.push_back(greedyCandidateDebugJson(candidate));
+    }
+    return {{"step", step.step},
+            {"localCurrent", positionJson(step.localCurrent)},
+            {"realCurrent", positionJson(step.realCurrent)},
+            {"alpha", step.alpha},
+            {"observedRatio", step.observedRatio},
+            {"qEff", step.qEff},
+            {"decision", step.decision},
+            {"selectedLocal", positionJson(step.selectedLocal)},
+            {"selectedReal", positionJson(step.selectedReal)},
+            {"candidates", candidates}};
+}
+
+void attachGreedyDebug(Json &result, const GreedyRunResult &run)
+{
+    Json debugSteps = Json::array();
+    for (const auto &step : run.debugSteps) {
+        debugSteps.push_back(greedyStepDebugJson(step));
+    }
+    result["greedy_debug"] = debugSteps;
+    const size_t count = std::min(run.debugSteps.size(), result["frames"].size());
+    for (size_t i = 0; i < count; ++i) {
+        result["frames"][i]["debug"] = debugSteps[i];
+    }
 }
 
 bool isBossTriggerCell(const MazeData &data, Position pos)
@@ -311,9 +367,11 @@ std::string AIPlayerEngine::RunRealtimeGreedy(const std::string &inputJson)
 {
     try {
         const MazeData data = parseMaze(inputJson);
-        Json result = buildResult(data, realtimeGreedyPath(data), "realtime-greedy");
-        result["greedy_formula"] = "ratio = resource_value / local_steps_in_current_3x3; G=50, T=-30; targets with ratio <= 0 are not actively selected";
-        result["memory_policy"] = "memoryless: each decision only uses the current 3x3 visible area and current game-state collection effect";
+        const GreedyRunResult run = realtimeGreedyRun(data);
+        Json result = buildResult(data, run.path, "realtime-greedy");
+        attachGreedyDebug(result, run);
+        result["greedy_formula"] = "additive reward = DeltaR + omegaI*alpha*I_proxy + beta*tailUB - qEff*pathLen - marginPenalty; beta=1; tailUB excludes coins already covered by path_t";
+        result["memory_policy"] = "online memory: each decision uses the local_known_map updated by 3x3 observations";
         return result.dump();
     } catch (const std::exception &ex) {
         return errorJson(ex.what());

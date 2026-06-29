@@ -81,6 +81,7 @@
     <ClCompile Include="src\AIPlayerEngine.cpp" />
     <ClCompile Include="src\DesktopApp.cpp" />
     <ClCompile Include="src\RealtimeGreedyStrategy.cpp" />
+    <ClCompile Include="src\Reward.cpp" />
     <ClCompile Include="src\ShortestPathStrategy.cpp" />
     <ClCompile Include="vendor\sha256.c" />
   </ItemGroup>
@@ -88,6 +89,8 @@
     <ClInclude Include="src\AIPlayerEngine.h" />
     <ClInclude Include="src\GameTypes.h" />
     <ClInclude Include="src\RealtimeGreedyStrategy.h" />
+    <ClInclude Include="src\RewardConfig.h" />
+    <ClInclude Include="src\Reward.h" />
     <ClInclude Include="src\ShortestPathStrategy.h" />
     <ClInclude Include="vendor\EventToken.h" />
     <ClInclude Include="vendor\sha256.h" />

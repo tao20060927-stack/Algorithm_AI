@@ -20,6 +20,9 @@
     <ClCompile Include="src\RealtimeGreedyStrategy.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\Reward.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\ShortestPathStrategy.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -35,6 +38,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\RealtimeGreedyStrategy.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\RewardConfig.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Reward.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\ShortestPathStrategy.h">

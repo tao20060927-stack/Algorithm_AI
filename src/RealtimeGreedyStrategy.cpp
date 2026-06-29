@@ -1,316 +1,282 @@
 #include "RealtimeGreedyStrategy.h"
 
+#include "Reward.h"
+
 #include <algorithm>
 #include <cmath>
 #include <climits>
-#include <queue>
-#include <set>
+#include <map>
 
 namespace ai_player {
 namespace {
-constexpr double kAlpha = 2.0;
-constexpr double kBeta = 0.5;
-constexpr double kEpsilon = 1e-6;
 
 class MemoryGreedyAgent {
 public:
+    /**
+     * 功能：创建实时贪心 AI 玩家。
+     * 输入：
+     *   - maze：桌面程序用于模拟 3x3 观察的真实迷宫数据。
+     * 输出：
+     *   - 构造一个只用局部记忆做决策的 AI。
+     * 关键逻辑：
+     *   - AI 的决策坐标从入口局部原点 (0,0) 开始，真实坐标只用于模拟视野和输出路径。
+     */
     explicit MemoryGreedyAgent(const MazeData &maze) : maze_(maze)
     {
-        const int rows = static_cast<int>(maze_.grid.size());
-        const int cols = static_cast<int>(maze_.grid[0].size());
-        knownMap_.assign(rows, std::vector<std::string>(cols, "U"));
-        observed_.assign(rows, std::vector<bool>(cols, false));
-        visited_.assign(rows, std::vector<bool>(cols, false));
-        visitCount_.assign(rows, std::vector<int>(cols, 0));
-        collectedCoins_.assign(rows, std::vector<bool>(cols, false));
-        triggeredTraps_.assign(rows, std::vector<bool>(cols, false));
-        bossTriggerCells_.assign(rows, std::vector<bool>(cols, false));
+        poseEstimator_.initialize();
     }
 
-    std::vector<Position> run()
+    /**
+     * 功能：执行实时探索并返回实际迷宫路径。
+     * 输入：
+     *   - 无。
+     * 输出：
+     *   - 返回从入口开始的真实坐标路径，供前端播放和后端结果结算。
+     * 关键逻辑：
+     *   - 每一步先观察 3x3、更新局部记忆和 reward 状态，再只走候选路径的下一步。
+     */
+    GreedyRunResult run()
     {
-        Position current = maze_.start;
-        std::vector<Position> path{current};
+        Position realCurrent = maze_.start;
+        Position localCurrent{0, 0};
+        localToReal_[localCurrent] = realCurrent;
+        realToLocal_[realCurrent] = localCurrent;
+
+        GreedyRunResult result;
+        result.path.push_back(realCurrent);
         const int maxSteps = static_cast<int>(maze_.grid.size() * maze_.grid[0].size() * 4);
 
-        for (int step = 0; step < maxSteps && current != maze_.exit; ++step) {
-            updateKnownMap(current);
-            applyCurrentCell(current);
+        for (int step = 0; step < maxSteps && realCurrent != maze_.exit; ++step) {
+            updateKnownMap(realCurrent, localCurrent);
+            applyCurrentCell(localCurrent);
+            poseEstimator_.update(localMap_, localCurrent);
+            state_.alphaSmooth = evaluator_.updateAlphaSmooth(state_.alphaSmooth, localMap_, poseEstimator_);
 
-            const auto nextPath = selectBestPath(current);
-            if (nextPath.size() <= 1) break;
+            GreedyStepDebug stepDebug;
+            const auto selectedPath = selectBestPath(localCurrent, realCurrent, static_cast<int>(result.path.size()) - 1,
+                                                     stepDebug);
+            result.debugSteps.push_back(std::move(stepDebug));
+            if (selectedPath.size() <= 1) break;
 
-            previousPosition_ = current;
-            hasPreviousPosition_ = true;
-            current = nextPath[1];
-            path.push_back(current);
+            const Position nextLocal = selectedPath[1];
+            const auto it = localToReal_.find(nextLocal);
+            if (it == localToReal_.end()) break;
+            localCurrent = nextLocal;
+            realCurrent = it->second;
+            result.path.push_back(realCurrent);
         }
-        return path;
+        return result;
     }
 
 private:
     const MazeData &maze_;
-    std::vector<std::vector<std::string>> knownMap_;
-    std::vector<std::vector<bool>> observed_;
-    std::vector<std::vector<bool>> visited_;
-    std::vector<std::vector<int>> visitCount_;
-    std::vector<std::vector<bool>> collectedCoins_;
-    std::vector<std::vector<bool>> triggeredTraps_;
+    LocalKnownMap localMap_;
+    MapPoseEstimator poseEstimator_;
+    PathValueEvaluator evaluator_;
+    AgentState state_;
+    std::map<Position, Position> localToReal_;
+    std::map<Position, Position> realToLocal_;
     std::vector<Position> knownBosses_;
     std::vector<bool> defeatedBosses_;
-    std::vector<std::vector<bool>> bossTriggerCells_;
-    int currentResource_ = 0;
-    int steps_ = 0;
+    Position localExit_ = kInvalid;
     Position currentTarget_ = kInvalid;
     double currentTargetScore_ = -1e18;
-    Position previousPosition_ = kInvalid;
-    bool hasPreviousPosition_ = false;
 
-    // 功能：判断坐标是否在迷宫内；输入：行列坐标；输出：是否有效。
-    bool inBounds(int row, int col) const
+    /**
+     * 功能：判断真实坐标是否在迷宫范围内。
+     * 输入：
+     *   - row：真实行号。
+     *   - col：真实列号。
+     * 输出：
+     *   - 返回坐标是否有效。
+     * 关键逻辑：
+     *   - 该函数只用于模拟 3x3 视野边界，不参与目标评分。
+     */
+    bool realInBounds(int row, int col) const
     {
         return row >= 0 && col >= 0 && row < static_cast<int>(maze_.grid.size()) &&
                col < static_cast<int>(maze_.grid[0].size());
     }
 
-    // 功能：根据当前位置 3x3 视野更新 known_map；输入：当前位置；输出：无，更新观察状态和已知 Boss 触发区。
-    void updateKnownMap(Position current)
+    /**
+     * 功能：根据真实 3x3 视野更新局部记忆地图。
+     * 输入：
+     *   - realCurrent：当前真实坐标，仅用于读取本步视野。
+     *   - localCurrent：当前局部坐标，用于把视野写入局部记忆。
+     * 输出：
+     *   - 无返回值，更新 local_known_map、Boss 信息和出口局部位置。
+     * 关键逻辑：
+     *   - 观察结果按相对位移写入局部坐标；reward 后续只读取局部记忆。
+     */
+    void updateKnownMap(Position realCurrent, Position localCurrent)
     {
-        for (int row = current.first - 1; row <= current.first + 1; ++row) {
-            for (int col = current.second - 1; col <= current.second + 1; ++col) {
-                if (!inBounds(row, col)) continue;
-                observed_[row][col] = true;
-                knownMap_[row][col] = maze_.grid[row][col];
-                if (knownMap_[row][col] == "B" && !containsBoss({row, col})) {
-                    knownBosses_.push_back({row, col});
-                    defeatedBosses_.push_back(false);
-                    updateBossTriggerCells({row, col});
+        for (int dr = -1; dr <= 1; ++dr) {
+            for (int dc = -1; dc <= 1; ++dc) {
+                const Position realPos{realCurrent.first + dr, realCurrent.second + dc};
+                if (!realInBounds(realPos.first, realPos.second)) continue;
+
+                const Position localPos{localCurrent.first + dr, localCurrent.second + dc};
+                std::string tile = maze_.grid[realPos.first][realPos.second];
+                const int bossIndex = bossIndexAt(localPos);
+                if (tile == "B" && bossIndex >= 0 && defeatedBosses_[bossIndex]) {
+                    tile = " ";
                 }
+
+                localMap_.setObserved(localPos, tile);
+                localToReal_[localPos] = realPos;
+                realToLocal_[realPos] = localPos;
+
+                if (tile == "B" && bossIndex < 0) {
+                    knownBosses_.push_back(localPos);
+                    defeatedBosses_.push_back(false);
+                    localMap_.markBossTriggers(localPos);
+                }
+                if (tile == "E") localExit_ = localPos;
             }
         }
     }
 
-    // 功能：结算 AI 实际站上当前格后的状态；输入：当前位置；输出：无，更新资源、访问和一次性资源触发状态。
-    void applyCurrentCell(Position current)
+    /**
+     * 功能：结算 AI 实际站上当前局部格后的状态。
+     * 输入：
+     *   - localCurrent：AI 当前局部坐标。
+     * 输出：
+     *   - 无返回值，更新资源、步数、访问状态和 Boss 战状态。
+     * 关键逻辑：
+     *   - 金币和陷阱只结算一次；走到 Boss 正邻接格会强制触发 Boss 战并清除 Boss 本体阻挡。
+     */
+    void applyCurrentCell(Position localCurrent)
     {
-        const auto [row, col] = current;
-        visited_[row][col] = true;
-        ++visitCount_[row][col];
-        if (steps_ > 0 && knownMap_[row][col] == "G" && !collectedCoins_[row][col]) {
-            currentResource_ += kGoldValue;
-            collectedCoins_[row][col] = true;
-        } else if (steps_ > 0 && knownMap_[row][col] == "T" && !triggeredTraps_[row][col]) {
-            currentResource_ += kTrapValue;
-            triggeredTraps_[row][col] = true;
+        localMap_.markVisited(localCurrent);
+        if (state_.steps > 0 && localMap_.tile(localCurrent) == "G" && !localMap_.isCollected(localCurrent)) {
+            state_.resource += kGoldValue;
+            localMap_.markCollected(localCurrent);
+        } else if (state_.steps > 0 && localMap_.tile(localCurrent) == "T" && !localMap_.isTriggered(localCurrent)) {
+            state_.resource += kTrapValue;
+            localMap_.markTriggered(localCurrent);
         }
-        markTriggeredBossDefeated(current);
-        ++steps_;
+        triggerAdjacentBoss(localCurrent);
+        ++state_.steps;
     }
 
-    // 功能：判断某个 Boss 是否已经被 3x3 视野观察并记录；输入：Boss 坐标；输出：是否已知。
-    bool containsBoss(Position pos) const
-    {
-        return std::find(knownBosses_.begin(), knownBosses_.end(), pos) != knownBosses_.end();
-    }
-
-    // 功能：查找某个 Boss 在已知 Boss 列表中的下标；输入：Boss 坐标；输出：下标，找不到则为 -1。
-    int bossIndexAt(Position pos) const
+    /**
+     * 功能：查找局部 Boss 在已知列表中的下标。
+     * 输入：
+     *   - localBoss：Boss 局部坐标。
+     * 输出：
+     *   - 返回下标，未找到时返回 -1。
+     * 关键逻辑：
+     *   - 用于避免重复记录同一个 Boss，并支持触发后清除 Boss 本体。
+     */
+    int bossIndexAt(Position localBoss) const
     {
         for (int i = 0; i < static_cast<int>(knownBosses_.size()); ++i) {
-            if (knownBosses_[i] == pos) return i;
+            if (knownBosses_[i] == localBoss) return i;
         }
         return -1;
     }
 
-    // 功能：进入 Boss 正邻接触发区后标记 Boss 已击败；输入：当前位置；输出：无。
-    void markTriggeredBossDefeated(Position current)
+    /**
+     * 功能：在 AI 进入 Boss 正邻接格时触发 Boss 战。
+     * 输入：
+     *   - localCurrent：AI 当前局部坐标。
+     * 输出：
+     *   - 无返回值，更新 Boss 已击败状态。
+     * 关键逻辑：
+     *   - 只要曼哈顿距离为 1 就视为强制触发；触发后 Boss 本体从局部地图中清除为通路。
+     */
+    void triggerAdjacentBoss(Position localCurrent)
     {
         for (int i = 0; i < static_cast<int>(knownBosses_.size()); ++i) {
-            const int distance = std::abs(current.first - knownBosses_[i].first) +
-                                 std::abs(current.second - knownBosses_[i].second);
-            if (distance == 1) {
+            const int distance = std::abs(localCurrent.first - knownBosses_[i].first) +
+                                 std::abs(localCurrent.second - knownBosses_[i].second);
+            if (distance == 1 && !defeatedBosses_[i]) {
                 defeatedBosses_[i] = true;
+                localMap_.clearBoss(knownBosses_[i]);
             }
         }
     }
 
-    // 功能：根据已观察到的 Boss 坐标标记上下左右触发区；输入：Boss 坐标；输出：无。
-    void updateBossTriggerCells(Position boss)
-    {
-        for (const auto [dr, dc] : kDirs) {
-            const int row = boss.first + dr;
-            const int col = boss.second + dc;
-            if (inBounds(row, col)) bossTriggerCells_[row][col] = true;
-        }
-    }
-
-    // 功能：判断格子是否为已知 Boss 本体；输入：坐标；输出：是否为 Boss 本体。
-    bool isBossCell(Position pos) const
-    {
-        if (!inBounds(pos.first, pos.second) || !observed_[pos.first][pos.second] ||
-            knownMap_[pos.first][pos.second] != "B") {
-            return false;
-        }
-        const int index = bossIndexAt(pos);
-        return index < 0 || !defeatedBosses_[index];
-    }
-
-    // 功能：判断格子是否为任意已知 Boss 的上下左右触发区；输入：坐标；输出：是否会触发 Boss。
-    bool isBossTriggerCell(Position pos) const
-    {
-        return inBounds(pos.first, pos.second) && bossTriggerCells_[pos.first][pos.second];
-    }
-
-    // 功能：判断格子是否为已知 Boss 的对角观察区；输入：坐标；输出：是否为对角观察格。
-    bool isBossDiagonalObserveCell(Position pos) const
-    {
-        for (const auto &boss : knownBosses_) {
-            if (std::abs(pos.first - boss.first) == 1 && std::abs(pos.second - boss.second) == 1) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    // 功能：判断格子能否作为 known_map 上的规划节点；输入：坐标；输出：是否可走。
-    bool isWalkableForPlanning(Position pos) const
-    {
-        const auto [row, col] = pos;
-        if (!inBounds(row, col) || !observed_[row][col]) return false;
-        // Boss 本体不可直接通行；Boss 上下左右触发区可以走，进入后由结果层记录 Boss 战事件。
-        if (knownMap_[row][col] == "#" || isBossCell(pos)) return false;
-        (void)isBossTriggerCell(pos);
-        (void)isBossDiagonalObserveCell(pos);
-        return true;
-    }
-
-    // 功能：从已观察地图中生成候选目标；输入：无；输出：已观察、可达、未访问的目标集合。
-    std::vector<Position> getCandidateTargets(Position current) const
+    /**
+     * 功能：生成当前可选探索目标。
+     * 输入：
+     *   - localCurrent：当前局部坐标。
+     * 输出：
+     *   - 返回已观察、可通行、未访问且可达的局部目标。
+     * 关键逻辑：
+     *   - 已访问格只允许作为路径中转，不作为候选目标；Boss 触发区可以作为目标，进入即触发战斗。
+     */
+    std::vector<Position> candidateTargets(Position localCurrent) const
     {
         std::vector<Position> targets;
-        for (int row = 0; row < static_cast<int>(knownMap_.size()); ++row) {
-            for (int col = 0; col < static_cast<int>(knownMap_[row].size()); ++col) {
-                Position pos{row, col};
-                if (!isWalkableForPlanning(pos) || visited_[row][col]) continue;
-                if (findPathOnKnownMap(current, pos).empty()) continue;
-                targets.push_back(pos);
-            }
+        for (const auto &pos : localMap_.observedPositions()) {
+            if (pos == localCurrent || localMap_.isVisited(pos) || !localMap_.isWalkableForPlanning(pos)) continue;
+            if (evaluator_.shortestPathOnKnownMap(localCurrent, pos, localMap_).empty()) continue;
+            targets.push_back(pos);
         }
         return targets;
     }
 
-    // 功能：在 known_map 上执行 BFS；输入：起点和目标；输出：只经过已观察安全格子的最短路径。
-    std::vector<Position> findPathOnKnownMap(Position start, Position target) const
+    /**
+     * 功能：构造当前评分上下文。
+     * 输入：
+     *   - localCurrent：当前局部坐标。
+     * 输出：
+     *   - 返回包含资源、步数、alpha 和出口路径的上下文。
+     * 关键逻辑：
+     *   - 只有出口已观察且在局部 known_map 上可达时，才把出口路径交给 q_eff 和停止探索规则。
+     */
+    PathValueContext buildContext(Position localCurrent) const
     {
-        if (!isWalkableForPlanning(start) || !isWalkableForPlanning(target)) return {};
-        std::vector dist(knownMap_.size(), std::vector<int>(knownMap_[0].size(), INT_MAX));
-        std::vector parent(knownMap_.size(), std::vector<Position>(knownMap_[0].size(), kInvalid));
-        std::queue<Position> queue;
-        queue.push(start);
-        dist[start.first][start.second] = 0;
-
-        while (!queue.empty()) {
-            const auto [row, col] = queue.front();
-            queue.pop();
-            if (std::pair(row, col) == target) break;
-            for (const auto [dr, dc] : kDirs) {
-                Position next{row + dr, col + dc};
-                if (!isWalkableForPlanning(next)) continue;
-                if (dist[next.first][next.second] != INT_MAX) continue;
-                dist[next.first][next.second] = dist[row][col] + 1;
-                parent[next.first][next.second] = {row, col};
-                queue.push(next);
-            }
+        PathValueContext context;
+        context.state = state_;
+        if (localExit_ != kInvalid) {
+            context.exitPath = evaluator_.shortestPathOnKnownMap(localCurrent, localExit_, localMap_);
         }
-
-        if (dist[target.first][target.second] == INT_MAX) return {};
-        std::vector<Position> path;
-        for (Position pos = target; pos != kInvalid; pos = parent[pos.first][pos.second]) {
-            path.push_back(pos);
-            if (pos == start) break;
-        }
-        std::reverse(path.begin(), path.end());
-        return path;
+        return context;
     }
 
-    // 功能：估算路径真实资源变化；输入：候选路径；输出：金币、陷阱一次性触发后的资源增量。
-    int pathResourceDelta(const std::vector<Position> &path) const
+    /**
+     * 功能：根据 reward 分数和目标保持机制选择下一条路径。
+     * 输入：
+     *   - localCurrent：当前局部坐标。
+     * 输出：
+     *   - 返回当前应沿着走一步的完整局部路径。
+     * 关键逻辑：
+     *   - 主评分使用 reward 组件；只有新目标比分数保持目标高出 switchMargin 时才切换。
+     */
+    std::vector<Position> selectBestPath(Position localCurrent, Position realCurrent, int step,
+                                         GreedyStepDebug &debug)
     {
-        int delta = 0;
-        for (size_t i = 1; i < path.size(); ++i) {
-            const auto [row, col] = path[i];
-            if (knownMap_[row][col] == "G" && !collectedCoins_[row][col]) delta += kGoldValue;
-            if (knownMap_[row][col] == "T" && !triggeredTraps_[row][col]) delta += kTrapValue;
-        }
-        return delta;
-    }
-
-    // 功能：计算目标点带来的新视野收益；输入：目标坐标；输出：目标 3x3 范围内未观察格数量。
-    int newVisibleCount(Position target) const
-    {
-        int count = 0;
-        for (int row = target.first - 1; row <= target.first + 1; ++row) {
-            for (int col = target.second - 1; col <= target.second + 1; ++col) {
-                if (inBounds(row, col) && !observed_[row][col]) ++count;
-            }
-        }
-        return count;
-    }
-
-    // 功能：估计从目标点出发后续已知金币机会；输入：目标坐标；输出：当前 known_map 上最好的金币距离收益。
-    double futureGain(Position target) const
-    {
-        double best = 0.0;
-        for (int row = 0; row < static_cast<int>(knownMap_.size()); ++row) {
-            for (int col = 0; col < static_cast<int>(knownMap_[row].size()); ++col) {
-                if (knownMap_[row][col] != "G" || collectedCoins_[row][col]) continue;
-                const auto path = findPathOnKnownMap(target, {row, col});
-                if (path.empty()) continue;
-                const int delta = pathResourceDelta(path);
-                if (currentResource_ + delta < 0) continue;
-                best = std::max(best, static_cast<double>(kGoldValue) / static_cast<double>(path.size()));
-            }
-        }
-        return best;
-    }
-
-    // 功能：计算整条路径价值；输入：路径和目标；输出：用于选择目标的 score，非法路径返回极小值。
-    double evaluatePath(const std::vector<Position> &path, Position target) const
-    {
-        if (path.size() <= 1) return -1e18;
-        for (const auto &pos : path) {
-            if (!isWalkableForPlanning(pos)) return -1e18;
-        }
-
-        const int delta = pathResourceDelta(path);
-        const int projectedResource = currentResource_ + delta;
-        if (projectedResource < 0) return -1e18;
-
-        const int pathLen = static_cast<int>(path.size()) - 1;
-        const double gain = delta + kAlpha * newVisibleCount(target) + kBeta * futureGain(target);
-        if (gain <= 0.0) {
-            return -1e9 - pathLen;
-        }
-        return gain / (pathLen + kEpsilon);
-    }
-
-    // 功能：遍历候选目标并选择价值最高路径；输入：当前位置；输出：下一步应沿着走的完整候选路径。
-    std::vector<Position> selectBestPath(Position current)
-    {
-        std::vector<Position> heldPath;
-        double heldScore = -1e18;
-        if (currentTarget_ != kInvalid && isWalkableForPlanning(currentTarget_) &&
-            !visited_[currentTarget_.first][currentTarget_.second]) {
-            heldPath = findPathOnKnownMap(current, currentTarget_);
-            heldScore = evaluatePath(heldPath, currentTarget_);
-        }
-
-        std::vector<Position> bestPath;
+        const PathValueContext context = buildContext(localCurrent);
+        debug.step = step;
+        debug.localCurrent = localCurrent;
+        debug.realCurrent = realCurrent;
+        debug.alpha = state_.alphaSmooth;
+        debug.observedRatio = static_cast<double>(poseEstimator_.estimatedObservedCount()) / 225.0;
+        debug.qEff = evaluator_.computeQEff(context, localMap_);
+        debug.decision = "no-candidate";
         double bestScore = -1e18;
         Position bestTarget = kInvalid;
-        for (const auto &target : getCandidateTargets(current)) {
-            auto path = findPathOnKnownMap(current, target);
-            const double score = evaluatePath(path, target);
+        std::vector<Position> bestPath;
+
+        for (const auto &target : candidateTargets(localCurrent)) {
+            auto path = evaluator_.shortestPathOnKnownMap(localCurrent, target, localMap_);
+            const double score = evaluator_.evaluate(path, target, context, localMap_, poseEstimator_);
+            GreedyCandidateDebug item;
+            item.localTarget = target;
+            const auto realIt = localToReal_.find(target);
+            item.realTarget = realIt == localToReal_.end() ? kInvalid : realIt->second;
+            item.tile = localMap_.tile(target);
+            item.score = score;
+            item.deltaR = evaluator_.pathResourceDelta(path, localMap_);
+            item.informationProxy = evaluator_.informationProxy(target, localMap_, poseEstimator_);
+            item.tailGain = evaluator_.futureGainMarginal(target, path, localMap_);
+            item.qEff = debug.qEff;
+            item.pathLength = path.empty() ? 0 : static_cast<int>(path.size()) - 1;
+            item.projectedResource = state_.resource + item.deltaR;
+            item.marginPenalty = item.projectedResource < 0 ? 0.0 : evaluator_.marginPenalty(item.projectedResource);
+            debug.candidates.push_back(item);
             if (score > bestScore) {
                 bestScore = score;
                 bestTarget = target;
@@ -318,58 +284,110 @@ private:
             }
         }
 
-        // 保持当前目标可以减少每步重新估值造成的来回摇摆；只有新目标明显更好才切换。
-        const bool shouldSwitchTarget = !bestPath.empty() &&
-                                        (heldPath.empty() ||
-                                         (heldScore > 0.0 ? bestScore > heldScore * 1.2
-                                                          : bestScore > heldScore + 1.0));
-        if (!heldPath.empty() && !shouldSwitchTarget) {
+        if (shouldGoExit(context, bestScore)) {
+            currentTarget_ = localExit_;
+            currentTargetScore_ = bestScore;
+            debug.decision = "exit";
+            debug.selectedLocal = localExit_;
+            const auto realIt = localToReal_.find(localExit_);
+            debug.selectedReal = realIt == localToReal_.end() ? kInvalid : realIt->second;
+            return context.exitPath;
+        }
+
+        std::vector<Position> heldPath;
+        double heldScore = -1e18;
+        if (currentTarget_ != kInvalid && !localMap_.isVisited(currentTarget_) &&
+            localMap_.isWalkableForPlanning(currentTarget_)) {
+            heldPath = evaluator_.shortestPathOnKnownMap(localCurrent, currentTarget_, localMap_);
+            heldScore = evaluator_.evaluate(heldPath, currentTarget_, context, localMap_, poseEstimator_);
+        }
+
+        const double switchMargin = evaluator_.parameters().switchMargin;
+        const bool shouldSwitch = !bestPath.empty() &&
+                                  (heldPath.empty() || bestScore > heldScore + switchMargin);
+        if (!heldPath.empty() && !shouldSwitch) {
             currentTargetScore_ = heldScore;
+            debug.decision = "hold-target";
+            markSelectedDebug(currentTarget_, debug);
             return heldPath;
         }
         if (!bestPath.empty()) {
             currentTarget_ = bestTarget;
             currentTargetScore_ = bestScore;
+            debug.decision = "best-target";
+            markSelectedDebug(bestTarget, debug);
             return bestPath;
         }
 
         currentTarget_ = kInvalid;
         currentTargetScore_ = -1e18;
-        return fallbackPath(current);
+        debug.decision = "fallback";
+        return fallbackPath(localCurrent);
     }
 
-    // 功能：候选目标为空时选择安全兜底路径；输入：当前位置；输出：通往出口或低访问安全格的路径。
-    std::vector<Position> fallbackPath(Position current) const
+    /**
+     * 功能：在本步调试候选表中标记实际采用的目标。
+     * 输入：
+     *   - target：最终选择的局部目标。
+     *   - debug：本步调试记录。
+     * 输出：
+     *   - 无返回值，更新 selectedLocal、selectedReal 和候选 selected 标记。
+     * 关键逻辑：
+     *   - 前端监控页依赖该标记判断“分数最高”和“实际选择”是否一致。
+     */
+    void markSelectedDebug(Position target, GreedyStepDebug &debug) const
     {
-        if (observed_[maze_.exit.first][maze_.exit.second]) {
-            auto exitPath = findPathOnKnownMap(current, maze_.exit);
+        debug.selectedLocal = target;
+        const auto realIt = localToReal_.find(target);
+        debug.selectedReal = realIt == localToReal_.end() ? kInvalid : realIt->second;
+        for (auto &item : debug.candidates) {
+            item.selected = item.localTarget == target;
+        }
+    }
+
+    /**
+     * 功能：判断是否停止探索并转向出口。
+     * 输入：
+     *   - context：包含出口路径的评分上下文。
+     *   - bestScore：当前最佳探索目标分数。
+     * 输出：
+     *   - 返回是否应直接去出口。
+     * 关键逻辑：
+     *   - 出口可达、探索收益不超过 tau，且估计观察比例达到 rhoMin 时停止探索。
+     */
+    bool shouldGoExit(const PathValueContext &context, double bestScore) const
+    {
+        if (context.exitPath.empty() || context.exitPath.size() <= 1) return false;
+        const double observedRatio = static_cast<double>(poseEstimator_.estimatedObservedCount()) / 225.0;
+        return bestScore <= evaluator_.parameters().tau && observedRatio >= evaluator_.parameters().rhoMin;
+    }
+
+    /**
+     * 功能：没有正常候选时选择脱困路径。
+     * 输入：
+     *   - localCurrent：当前局部坐标。
+     * 输出：
+     *   - 返回通向出口或能带来更多新视野的局部路径。
+     * 关键逻辑：
+     *   - fallback 不加入 reward 项，只用于避免候选为空时停在原地。
+     */
+    std::vector<Position> fallbackPath(Position localCurrent) const
+    {
+        if (localExit_ != kInvalid) {
+            const auto exitPath = evaluator_.shortestPathOnKnownMap(localCurrent, localExit_, localMap_);
             if (!exitPath.empty()) return exitPath;
         }
 
         std::vector<Position> bestPath;
-        int bestNewVisible = -1;
-        int bestVisit = INT_MAX;
-        bool bestBacktracks = true;
-        for (int row = 0; row < static_cast<int>(knownMap_.size()); ++row) {
-            for (int col = 0; col < static_cast<int>(knownMap_[row].size()); ++col) {
-                Position target{row, col};
-                if (!isWalkableForPlanning(target) || target == current) continue;
-                auto path = findPathOnKnownMap(current, target);
-                if (path.empty()) continue;
-
-                // fallback 不参与主评分，只用于脱困；优先走向还能点亮未知格的安全前沿。
-                const int visibleGain = newVisibleCount(target);
-                const bool backtracks = hasPreviousPosition_ && path.size() > 1 && path[1] == previousPosition_;
-                if (visibleGain > bestNewVisible ||
-                    (visibleGain == bestNewVisible && bestBacktracks && !backtracks) ||
-                    (visibleGain == bestNewVisible && bestBacktracks == backtracks && visitCount_[row][col] < bestVisit) ||
-                    (visibleGain == bestNewVisible && bestBacktracks == backtracks && visitCount_[row][col] == bestVisit &&
-                     (bestPath.empty() || path.size() < bestPath.size()))) {
-                    bestNewVisible = visibleGain;
-                    bestVisit = visitCount_[row][col];
-                    bestBacktracks = backtracks;
-                    bestPath = std::move(path);
-                }
+        double bestInfo = -1.0;
+        for (const auto &target : localMap_.observedPositions()) {
+            if (target == localCurrent || !localMap_.isWalkableForPlanning(target)) continue;
+            auto path = evaluator_.shortestPathOnKnownMap(localCurrent, target, localMap_);
+            if (path.empty()) continue;
+            const double info = evaluator_.informationProxy(target, localMap_, poseEstimator_);
+            if (info > bestInfo || (info == bestInfo && (bestPath.empty() || path.size() < bestPath.size()))) {
+                bestInfo = info;
+                bestPath = std::move(path);
             }
         }
         return bestPath;
@@ -377,7 +395,30 @@ private:
 };
 } // namespace
 
+/**
+ * 功能：执行 3x3 实时贪心探索策略。
+ * 输入：
+ *   - data：任务迷宫数据。
+ * 输出：
+ *   - 返回真实坐标路径，外部接口保持不变。
+ * 关键逻辑：
+ *   - 内部使用局部记忆地图和可复用 reward 组件评分，每次只走重规划路径的下一步。
+ */
 std::vector<Position> realtimeGreedyPath(const MazeData &data)
+{
+    return realtimeGreedyRun(data).path;
+}
+
+/**
+ * 功能：执行 3x3 实时贪心探索并返回路径调试信息。
+ * 输入：
+ *   - data：任务迷宫数据。
+ * 输出：
+ *   - 返回真实坐标路径和每步候选目标评分分解。
+ * 关键逻辑：
+ *   - 该接口供前端评分监控页使用，不改变原有 realtimeGreedyPath 对外路径接口。
+ */
+GreedyRunResult realtimeGreedyRun(const MazeData &data)
 {
     MemoryGreedyAgent agent(data);
     return agent.run();

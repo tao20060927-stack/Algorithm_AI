@@ -39,6 +39,7 @@ textarea{height:300px;resize:vertical;border:1px solid #d7dde5;border-radius:6px
 #board{display:grid;gap:2px;width:min(72vh,100%);max-width:740px;aspect-ratio:1/1}.cell{display:grid;place-items:center;border-radius:3px;min-width:0;min-height:0;font-weight:700;font-size:13px;border:1px solid rgba(0,0,0,.06)}
 .unknown{background:#111827;color:#111827}.wall{background:#263241}.road{background:#f8fafc}.start{background:#dbeafe;color:#1d4ed8}.exit{background:#16a34a;color:#fff}.gold{background:#f7c948}.trap{background:#e05d5d;color:#fff}.lock{background:#0f766e;color:#fff}.boss{background:#7c3aed;color:#fff}
 .path{outline:2px solid rgba(37,99,235,.55);outline-offset:-2px}.visible{filter:brightness(1.08)}.player{box-shadow:inset 0 0 0 3px #111827}
+.monitor{background:#fff;border:1px solid #d7dde5;border-radius:8px;padding:16px;overflow:auto;width:100%;height:100%}.hidden{display:none}.debug-grid{display:grid;grid-template-columns:repeat(6,minmax(90px,1fr));gap:8px;margin-bottom:12px}.debug-grid div{border:1px solid #e1e7ef;border-radius:6px;padding:8px;background:#fbfcfe}.debug-grid span{display:block;color:#667085;font-size:11px}.debug-grid strong{font-size:16px}.diagnosis{border:1px solid #d7dde5;border-radius:6px;padding:10px;margin-bottom:12px;background:#f8fafc;color:#17202c}.debug-table{width:100%;border-collapse:collapse;font-size:12px}.debug-table th,.debug-table td{border-bottom:1px solid #e1e7ef;padding:7px;text-align:right;white-space:nowrap}.debug-table th:first-child,.debug-table td:first-child{text-align:left}.debug-table tr.selected{background:#ecfdf3}.debug-table tr.gold-row{box-shadow:inset 3px 0 0 #f7c948}
 .details{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;min-height:0}.panel h2{font-size:14px;margin:0 0 8px}pre{margin:0;max-height:110px;overflow:auto;white-space:pre-wrap;color:#667085;font-size:12px}
 </style>
 </head>
@@ -50,11 +51,13 @@ textarea{height:300px;resize:vertical;border:1px solid #d7dde5;border-radius:6px
     <div class="row"><button id="sample1">15x15 模板</button><button id="sample2">test 示例</button><button id="validate">校验</button></div>
     <label class="label"><span>算法</span><select id="algorithm"><option value="smart">完整探险 Smart</option><option value="dijkstra">完整探险 Dijkstra</option><option value="astar">完整探险 A*</option><option value="greedy">3x3 实时贪心</option></select></label>
     <div class="row five"><button id="run">运行</button><button id="pause">暂停</button><button id="prev">上一步</button><button id="step">单步</button><button id="reset">重置</button></div>
+    <button id="viewToggle">评分监控</button>
     <label class="label"><span>速度</span><input id="speed" type="range" min="80" max="1200" value="360"></label>
   </section>
   <section class="main">
     <div class="stats"><div class="stat"><span>资源</span><strong id="resource">0</strong></div><div class="stat"><span>步数</span><strong id="steps">0</strong></div><div class="stat"><span>比值</span><strong id="ratio">0.00</strong></div><div class="stat"><span>状态</span><strong id="state">待运行</strong></div></div>
-    <div class="board-wrap"><div id="board"></div></div>
+    <div id="boardView" class="board-wrap"><div id="board"></div></div>
+    <div id="monitorView" class="monitor hidden"><div id="debugSummary"></div><div id="debugDiagnosis" class="diagnosis">暂无评分数据</div><div id="debugTable"></div></div>
     <div class="details"><section class="panel"><h2>机关</h2><pre id="lockInfo">-</pre></section><section class="panel"><h2>Boss</h2><pre id="bossInfo">-</pre></section><section class="panel"><h2>事件</h2><pre id="eventInfo">-</pre></section></div>
   </section>
 </main>
@@ -62,9 +65,11 @@ textarea{height:300px;resize:vertical;border:1px solid #d7dde5;border-radius:6px
 <script>
 const sample1=`{"maze":[["#","#","#","#","#","#","#","#","#","#","#","S","#","#","#"],["#"," ","G","T","G","#"," "," "," "," "," "," "," "," ","#"],["#","#","#","G","#","#","#"," ","#","#","#","#","#","#","#"],["#"," ","T"," "," "," ","#"," "," "," ","#"," ","#","G","#"],["#","#","#"," ","#"," ","#","#","#"," ","#"," ","#","G","#"],["#"," ","G"," ","#"," ","#","G"," "," "," "," ","G","T","#"],["#","#","#"," ","#"," ","#","#","#","#","#","T","#","T","#"],["#"," ","#"," ","#"," ","#"," "," "," "," "," ","#"," ","#"],["#","T","#"," ","#"," ","#","#","#"," ","#","#","#"," ","#"],["#"," "," "," ","#"," "," "," "," "," "," "," ","#"," ","#"],["#"," ","#","#","#","#","#","#","#","#","#","#","#","#","#"],["#"," "," "," ","#","G","#"," ","T"," ","#","G","T"," ","#"],["#","#","#"," ","#","T","#"," ","#","#","#","#","#"," ","#"],["#"," "," "," "," "," "," "," ","B"," "," "," ","T","G","#"],["#","#","#","#","#","#","#","#","#","E","#","#","#","#","#"]],"B":[11,13,9,15],"PlayerSkills":[[8,4],[2,0],[4,2],[6,3]],"minRouds":20,"CoinConsumption":5}`;
 const sample2=`{"maze":[["#","S","#","#","#","#","#","#","#","#","#"],["#"," ","#"," "," "," "," "," "," "," ","#"],["#"," ","#","#","#"," ","#"," ","#","#","#"],["#"," ","#"," "," "," ","#"," ","#","G","#"],["#","L","#"," ","#"," ","#"," ","#"," ","#"],["#"," ","#"," ","#"," ","#"," "," "," ","E"],["#","B","#"," ","#","#","#"," ","#","#","#"],["#"," "," "," "," "," ","#"," "," ","T","#"],["#"," ","#","#","#","#","#","#","#","G","#"],["#"," ","#"," "," "," ","G","T"," ","T","#"],["#","#","#","#","#","#","#","#","#","#","#"]],"B":[13,18,19,14],"PlayerSkills":[[4,1],[3,2],[5,2],[9,4],[2,0]],"C":[[2,0]],"L":"54a76d5a60849cbe4a6e7f75d830fe73f413586f329cec620eaf69bea2ade132","password":"946"}`;
-const $=id=>document.getElementById(id);let maze=null,result=null,idx=0,timer=null,lastInput="",lastAlg="";
+const $=id=>document.getElementById(id);let maze=null,result=null,idx=0,timer=null,lastInput="",lastAlg="",monitorMode=false;
 function api(){return chrome.webview.hostObjects.ai}function setState(s){$("state").textContent=s}
 function tileClass(t){return t=="#"?"wall":t=="S"?"start":t=="E"?"exit":t=="G"?"gold":t=="T"?"trap":t=="L"?"lock":t=="B"?"boss":"road"}
+function fmt(v,d=2){return Number.isFinite(Number(v))?Number(v).toFixed(d):"-"}
+function posText(p){return p?`(${p.row},${p.col})`:"-"}
 function draw(){
 if(!maze)return;
 const f=result?.frames?.[idx];
@@ -89,7 +94,26 @@ $("steps").textContent=f?.step??result?.steps??0;
 $("ratio").textContent=Number(result?.score_ratio??0).toFixed(2);
 $("lockInfo").textContent=JSON.stringify(result?.lock??{},null,2);
 $("bossInfo").textContent=JSON.stringify(result?.boss??{},null,2);
-$("eventInfo").textContent=JSON.stringify(result?.events??[],null,2)
+$("eventInfo").textContent=JSON.stringify(result?.events??[],null,2);
+drawDebug()
+}
+function analyzeDebug(d,f){
+if(!d)return "当前帧没有贪心评分数据。请确认算法选择的是 3x3 实时贪心。";
+const cs=d.candidates||[],gold=cs.filter(c=>c.tile=="G"),selected=cs.find(c=>c.selected),best=[...cs].sort((a,b)=>b.score-a.score)[0];
+const visibleGold=(f?.visible||[]).some(c=>c.tile=="G");
+if(visibleGold&&!gold.length)return "视野里有金币，但金币没有进入候选集：优先检查 observed/visited/walkable 或路径可达性。";
+if(gold.length&&best&&best.tile!="G")return `金币进入候选集，但最高分是 ${best.tile||"空格"} ${posText(best.realTarget)}：重点看 Iproxy、qEff*len、margin 是否压过金币。`;
+if(gold.length&&best?.tile=="G"&&selected&&selected.tile!="G")return "金币候选分数最高，但实际没选金币：重点检查目标保持 switchMargin 或出口/兜底逻辑。";
+if(gold.length&&selected?.tile=="G")return "金币进入候选集且被选中；如果画面没走向金币，检查下一帧路径映射或播放帧。";
+return cs.length?"当前没有金币候选，比较普通目标的 Iproxy、qEff 和路径长度。":"当前没有候选目标，策略会进入 fallback 或停止。";
+}
+function drawDebug(){
+const f=result?.frames?.[idx],d=f?.debug;
+$("debugSummary").innerHTML=d?`<div class="debug-grid"><div><span>决策</span><strong>${d.decision}</strong></div><div><span>alpha</span><strong>${fmt(d.alpha)}</strong></div><div><span>qEff</span><strong>${fmt(d.qEff)}</strong></div><div><span>观察率</span><strong>${fmt((d.observedRatio||0)*100,1)}%</strong></div><div><span>当前位置</span><strong>${posText(d.realCurrent)}</strong></div><div><span>选中目标</span><strong>${posText(d.selectedReal)}</strong></div></div>`:"";
+$("debugDiagnosis").textContent=analyzeDebug(d,f);
+if(!d){$("debugTable").innerHTML="";return}
+const rows=[...(d.candidates||[])].sort((a,b)=>b.score-a.score).map(c=>`<tr class="${c.selected?"selected ":""}${c.tile=="G"?"gold-row":""}"><td>${c.selected?"* ":""}${c.tile||" "}</td><td>${posText(c.realTarget)}</td><td>${fmt(c.score)}</td><td>${c.deltaR}</td><td>${fmt(c.Iproxy)}</td><td>${fmt(c.tailGain)}</td><td>${fmt(c.qEff)}</td><td>${c.pathLen}</td><td>${fmt(c.marginPenalty)}</td><td>${c.projectedResource}</td></tr>`).join("");
+$("debugTable").innerHTML=`<table class="debug-table"><thead><tr><th>目标</th><th>坐标</th><th>score</th><th>deltaR</th><th>Iproxy</th><th>tailUB</th><th>qEff</th><th>len</th><th>margin</th><th>projR</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 function stop(){if(timer){clearInterval(timer);timer=null}}function next(){if(!result?.frames?.length)return;idx=Math.min(idx+1,result.frames.length-1);draw();if(idx==result.frames.length-1){stop();setState(result.finished?"已抵达终点":"已停止")}}function play(){stop();timer=setInterval(next,Number($("speed").value));setState("播放中")}
 async function call(name,...args){return JSON.parse(await api()[name](...args))}
@@ -97,6 +121,7 @@ async function run(){stop();const input=$("jsonInput").value,alg=$("algorithm").
 $("sample1").onclick=()=>{$("jsonInput").value=sample1;maze=JSON.parse(sample1).maze;result=null;idx=0;draw();setState("已加载示例")};
 $("sample2").onclick=()=>{$("jsonInput").value=sample2;maze=JSON.parse(sample2).maze;result=null;idx=0;draw();setState("已加载示例")};
 $("validate").onclick=async()=>{try{const out=await call("ValidateMaze",$("jsonInput").value);$("eventInfo").textContent=JSON.stringify(out,null,2);setState(out.ok?"校验通过":"校验失败")}catch(e){setState(e.message)}};
+$("viewToggle").onclick=()=>{monitorMode=!monitorMode;$("boardView").classList.toggle("hidden",monitorMode);$("monitorView").classList.toggle("hidden",!monitorMode);$("viewToggle").textContent=monitorMode?"迷宫视图":"评分监控";draw()};
 $("run").onclick=()=>run().catch(e=>{stop();setState(e.message)});$("pause").onclick=()=>{stop();setState("已暂停")};$("prev").onclick=()=>{stop();if(result?.frames?.length){idx=Math.max(idx-1,0);draw()}setState("上一步")};$("step").onclick=()=>{stop();next();setState("单步")};$("reset").onclick=()=>{stop();idx=0;draw();setState("已重置")};$("speed").oninput=()=>{if(timer)play()};
 $("jsonInput").value=sample1;maze=JSON.parse(sample1).maze;draw();
 </script>

@@ -21,6 +21,7 @@ endif ()
 add_library(ai_player_core STATIC
     src/AIPlayerEngine.cpp
     src/RealtimeGreedyStrategy.cpp
+    src/Reward.cpp
     src/ShortestPathStrategy.cpp
     vendor/sha256.c
 )
