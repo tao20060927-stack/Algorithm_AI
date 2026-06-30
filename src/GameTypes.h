@@ -14,7 +14,7 @@ using Position = std::pair<int, int>;
 
 inline constexpr int kGoldValue = 50;
 inline constexpr int kTrapValue = -30;
-inline constexpr Position kInvalid{-1, -1};
+inline constexpr Position kInvalid{-1000000000, -1000000000};
 inline constexpr std::array<Position, 4> kDirs{{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}};
 
 struct Skill {

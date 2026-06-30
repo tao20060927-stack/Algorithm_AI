@@ -20,6 +20,11 @@ endif ()
 
 add_library(ai_player_core STATIC
     src/AIPlayerEngine.cpp
+    src/AStarStrategy.cpp
+    src/BossStrategy.cpp
+    src/BranchBoundStrategy.cpp
+    src/DijkstraStrategy.cpp
+    src/DivideConquerStrategy.cpp
     src/RealtimeGreedyStrategy.cpp
     src/Reward.cpp
     src/ShortestPathStrategy.cpp
@@ -36,6 +41,9 @@ target_compile_definitions(ai_player_core PUBLIC NOMINMAX)
 
 add_executable(ai_player_smoke src/SmokeTest.cpp)
 target_link_libraries(ai_player_smoke PRIVATE ai_player_core)
+
+add_executable(ai_player_eval src/GreedyEval.cpp)
+target_link_libraries(ai_player_eval PRIVATE ai_player_core)
 
 if (MSVC)
     set(WEBVIEW2_PACKAGE_ROOT "$ENV{WEBVIEW2_SDK}" CACHE PATH "Microsoft.Web.WebView2 package root")
@@ -72,6 +80,7 @@ if (MSVC)
     target_compile_options(AIPlayerDesktop PRIVATE /utf-8)
     target_compile_options(ai_player_core PRIVATE /utf-8)
     target_compile_options(ai_player_smoke PRIVATE /utf-8)
+    target_compile_options(ai_player_eval PRIVATE /utf-8)
 else ()
     message(WARNING "MSVC was not detected. Building ai_player_core and ai_player_smoke only; the WebView2 desktop executable requires MSVC.")
 endif ()

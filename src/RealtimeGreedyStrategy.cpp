@@ -1,11 +1,16 @@
 #include "RealtimeGreedyStrategy.h"
 
+#include "AStarStrategy.h"
+#include "BranchBoundStrategy.h"
+#include "DijkstraStrategy.h"
+#include "DivideConquerStrategy.h"
 #include "Reward.h"
 
 #include <algorithm>
 #include <cmath>
 #include <climits>
 #include <map>
+#include <stdexcept>
 
 namespace ai_player {
 namespace {
@@ -16,12 +21,17 @@ public:
      * 功能：创建实时贪心 AI 玩家。
      * 输入：
      *   - maze：桌面程序用于模拟 3x3 观察的真实迷宫数据。
+     *   - routeAlgorithm：reward 选定目标后使用的两点寻路算法。
+     *   - parameters：本次运行使用的 reward 参数，训练脚本会通过该参数做黑盒调参。
      * 输出：
      *   - 构造一个只用局部记忆做决策的 AI。
      * 关键逻辑：
-     *   - AI 的决策坐标从入口局部原点 (0,0) 开始，真实坐标只用于模拟视野和输出路径。
+     *   - AI 的决策坐标从起始位置局部原点 (0,0) 开始，真实坐标只用于模拟视野和输出路径。
+     *   - routeAlgorithm 只影响路由，不参与候选目标的 reward 公式。
+     *   - parameters 只覆盖本次 evaluator，不修改全局默认配置。
      */
-    explicit MemoryGreedyAgent(const MazeData &maze) : maze_(maze)
+    explicit MemoryGreedyAgent(const MazeData &maze, const std::string &routeAlgorithm, RewardParameters parameters)
+        : maze_(maze), routeAlgorithm_(routeAlgorithm), evaluator_(parameters)
     {
         poseEstimator_.initialize();
     }
@@ -31,7 +41,7 @@ public:
      * 输入：
      *   - 无。
      * 输出：
-     *   - 返回从入口开始的真实坐标路径，供前端播放和后端结果结算。
+     *   - 返回从起始位置开始的真实坐标路径，供前端播放和后端结果结算。
      * 关键逻辑：
      *   - 每一步先观察 3x3、更新局部记忆和 reward 状态，再只走候选路径的下一步。
      */
@@ -70,6 +80,7 @@ public:
 
 private:
     const MazeData &maze_;
+    std::string routeAlgorithm_;
     LocalKnownMap localMap_;
     MapPoseEstimator poseEstimator_;
     PathValueEvaluator evaluator_;
@@ -211,10 +222,49 @@ private:
         std::vector<Position> targets;
         for (const auto &pos : localMap_.observedPositions()) {
             if (pos == localCurrent || localMap_.isVisited(pos) || !localMap_.isWalkableForPlanning(pos)) continue;
-            if (evaluator_.shortestPathOnKnownMap(localCurrent, pos, localMap_).empty()) continue;
+            if (routePath(localCurrent, pos).empty()) continue;
             targets.push_back(pos);
         }
         return targets;
+    }
+
+    /**
+     * 功能：记录已观察但没有进入 reward 候选集的格子及过滤原因。
+     * 输入：
+     *   - localCurrent：当前局部坐标，用于判断格子是否能从当前位置路由到达。
+     *   - debug：当前步调试信息，函数会向 rejected 列表追加过滤记录。
+     * 输出：
+     *   - 无返回值，通过 debug.rejected 保存被过滤格子的坐标、类型和原因。
+     * 关键逻辑：
+     *   - 过滤条件与 candidateTargets 完全对应，仅用于定位候选缺失问题，不改变 reward 和路径决策。
+     */
+    void recordRejectedTargets(Position localCurrent, GreedyStepDebug &debug) const
+    {
+        for (const auto &pos : localMap_.observedPositions()) {
+            std::string reason;
+            int pathLength = 0;
+            if (pos == localCurrent) {
+                reason = "current";
+            } else if (localMap_.isVisited(pos)) {
+                reason = "visited";
+            } else if (!localMap_.isWalkableForPlanning(pos)) {
+                reason = "not-walkable";
+            } else {
+                const auto path = routePath(localCurrent, pos);
+                if (!path.empty()) continue;
+                reason = "unreachable";
+                pathLength = 0;
+            }
+
+            GreedyRejectedDebug item;
+            item.localTarget = pos;
+            const auto realIt = localToReal_.find(pos);
+            item.realTarget = realIt == localToReal_.end() ? kInvalid : realIt->second;
+            item.tile = localMap_.tile(pos);
+            item.reason = reason;
+            item.pathLength = pathLength;
+            debug.rejected.push_back(item);
+        }
     }
 
     /**
@@ -231,9 +281,32 @@ private:
         PathValueContext context;
         context.state = state_;
         if (localExit_ != kInvalid) {
-            context.exitPath = evaluator_.shortestPathOnKnownMap(localCurrent, localExit_, localMap_);
+            context.exitPath = routePath(localCurrent, localExit_);
         }
         return context;
+    }
+
+    /**
+     * 功能：按当前配置的路由算法在局部已知地图上求两点路径。
+     * 输入：
+     *   - start：局部路径起点。
+     *   - target：reward 层已经选出的局部目标。
+     * 输出：
+     *   - 返回 start 到 target 的局部路径；不可达时返回空路径。
+     * 关键逻辑：
+     *   - reward 负责“去哪一个格子”，本函数只负责“怎么走到该格子”。
+     *   - 所有路由算法都只读取 localMap_，因此不会偷看完整迷宫。
+     */
+    std::vector<Position> routePath(Position start, Position target) const
+    {
+        if (routeAlgorithm_ == "greedy" || routeAlgorithm_ == "smart") {
+            return evaluator_.shortestPathOnKnownMap(start, target, localMap_);
+        }
+        if (routeAlgorithm_ == "dijkstra") return dijkstraPath(localMap_, start, target);
+        if (routeAlgorithm_ == "astar") return astarPath(localMap_, start, target);
+        if (routeAlgorithm_ == "branch_bound") return branchBoundPath(localMap_, start, target);
+        if (routeAlgorithm_ == "divide_conquer") return divideConquerPath(localMap_, start, target);
+        throw std::runtime_error("unsupported route algorithm: " + routeAlgorithm_);
     }
 
     /**
@@ -256,12 +329,13 @@ private:
         debug.observedRatio = static_cast<double>(poseEstimator_.estimatedObservedCount()) / 225.0;
         debug.qEff = evaluator_.computeQEff(context, localMap_);
         debug.decision = "no-candidate";
+        recordRejectedTargets(localCurrent, debug);
         double bestScore = -1e18;
         Position bestTarget = kInvalid;
         std::vector<Position> bestPath;
 
         for (const auto &target : candidateTargets(localCurrent)) {
-            auto path = evaluator_.shortestPathOnKnownMap(localCurrent, target, localMap_);
+            auto path = routePath(localCurrent, target);
             const double score = evaluator_.evaluate(path, target, context, localMap_, poseEstimator_);
             GreedyCandidateDebug item;
             item.localTarget = target;
@@ -276,6 +350,10 @@ private:
             item.pathLength = path.empty() ? 0 : static_cast<int>(path.size()) - 1;
             item.projectedResource = state_.resource + item.deltaR;
             item.marginPenalty = item.projectedResource < 0 ? 0.0 : evaluator_.marginPenalty(item.projectedResource);
+            item.unknownComponents =
+                poseEstimator_.unknownComponentSizesTouchingView(target, localMap_, evaluator_.parameters().areaMax);
+            item.unknownComponentSum = 0;
+            for (const int size : item.unknownComponents) item.unknownComponentSum += size;
             debug.candidates.push_back(item);
             if (score > bestScore) {
                 bestScore = score;
@@ -298,7 +376,7 @@ private:
         double heldScore = -1e18;
         if (currentTarget_ != kInvalid && !localMap_.isVisited(currentTarget_) &&
             localMap_.isWalkableForPlanning(currentTarget_)) {
-            heldPath = evaluator_.shortestPathOnKnownMap(localCurrent, currentTarget_, localMap_);
+            heldPath = routePath(localCurrent, currentTarget_);
             heldScore = evaluator_.evaluate(heldPath, currentTarget_, context, localMap_, poseEstimator_);
         }
 
@@ -350,16 +428,15 @@ private:
      * 输入：
      *   - context：包含出口路径的评分上下文。
      *   - bestScore：当前最佳探索目标分数。
-     * 输出：
-     *   - 返回是否应直接去出口。
-     * 关键逻辑：
-     *   - 出口可达、探索收益不超过 tau，且估计观察比例达到 rhoMin 时停止探索。
-     */
+ * 输出：
+ *   - 返回是否应直接去出口。
+ * 关键逻辑：
+ *   - 出口可达且探索收益不超过 tau 时停止探索。
+ */
     bool shouldGoExit(const PathValueContext &context, double bestScore) const
     {
         if (context.exitPath.empty() || context.exitPath.size() <= 1) return false;
-        const double observedRatio = static_cast<double>(poseEstimator_.estimatedObservedCount()) / 225.0;
-        return bestScore <= evaluator_.parameters().tau && observedRatio >= evaluator_.parameters().rhoMin;
+        return bestScore <= evaluator_.parameters().tau;
     }
 
     /**
@@ -374,7 +451,7 @@ private:
     std::vector<Position> fallbackPath(Position localCurrent) const
     {
         if (localExit_ != kInvalid) {
-            const auto exitPath = evaluator_.shortestPathOnKnownMap(localCurrent, localExit_, localMap_);
+            const auto exitPath = routePath(localCurrent, localExit_);
             if (!exitPath.empty()) return exitPath;
         }
 
@@ -382,7 +459,7 @@ private:
         double bestInfo = -1.0;
         for (const auto &target : localMap_.observedPositions()) {
             if (target == localCurrent || !localMap_.isWalkableForPlanning(target)) continue;
-            auto path = evaluator_.shortestPathOnKnownMap(localCurrent, target, localMap_);
+            auto path = routePath(localCurrent, target);
             if (path.empty()) continue;
             const double info = evaluator_.informationProxy(target, localMap_, poseEstimator_);
             if (info > bestInfo || (info == bestInfo && (bestPath.empty() || path.size() < bestPath.size()))) {
@@ -399,28 +476,36 @@ private:
  * 功能：执行 3x3 实时贪心探索策略。
  * 输入：
  *   - data：任务迷宫数据。
+ *   - routeAlgorithm：reward 选中目标后使用的两点路由算法。
+ *   - parameters：本次运行使用的 reward 参数。
  * 输出：
  *   - 返回真实坐标路径，外部接口保持不变。
  * 关键逻辑：
  *   - 内部使用局部记忆地图和可复用 reward 组件评分，每次只走重规划路径的下一步。
+ *   - 分治、分支限界、Dijkstra、A* 都只作为 routeAlgorithm，不承担完整探索。
  */
-std::vector<Position> realtimeGreedyPath(const MazeData &data)
+std::vector<Position> realtimeGreedyPath(const MazeData &data, const std::string &routeAlgorithm,
+                                         RewardParameters parameters)
 {
-    return realtimeGreedyRun(data).path;
+    return realtimeGreedyRun(data, routeAlgorithm, parameters).path;
 }
 
 /**
  * 功能：执行 3x3 实时贪心探索并返回路径调试信息。
  * 输入：
  *   - data：任务迷宫数据。
+ *   - routeAlgorithm：reward 选中目标后使用的两点路由算法。
+ *   - parameters：本次运行使用的 reward 参数。
  * 输出：
  *   - 返回真实坐标路径和每步候选目标评分分解。
  * 关键逻辑：
  *   - 该接口供前端评分监控页使用，不改变原有 realtimeGreedyPath 对外路径接口。
+ *   - routeAlgorithm 只影响路径搜索，不改变 reward 目标选择公式。
  */
-GreedyRunResult realtimeGreedyRun(const MazeData &data)
+GreedyRunResult realtimeGreedyRun(const MazeData &data, const std::string &routeAlgorithm,
+                                  RewardParameters parameters)
 {
-    MemoryGreedyAgent agent(data);
+    MemoryGreedyAgent agent(data, routeAlgorithm, parameters);
     return agent.run();
 }
 } // namespace ai_player

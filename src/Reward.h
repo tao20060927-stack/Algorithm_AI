@@ -25,21 +25,19 @@ struct RewardParameters {
     double beta = reward_config::kBeta;
     double kappaU = reward_config::kKappaU;
     int areaMax = reward_config::kAreaMax;
+    double rhoAreaValueMin = reward_config::kRhoAreaValueMin;
     double qMin = reward_config::kQMin;
+    double qEffLengthWeight = reward_config::kQEffLengthWeight;
     int safeResource = reward_config::kSafeResource;
     double lambdaMargin = reward_config::kLambdaMargin;
     double switchMargin = reward_config::kSwitchMargin;
     double tau = reward_config::kTau;
-    double rhoMin = reward_config::kRhoMin;
     double wU = reward_config::kWU;
     double wV = reward_config::kWV;
     double wR = reward_config::kWR;
-    double cB = reward_config::kCB;
-    double kappaB = reward_config::kKappaB;
     double lambda = reward_config::kLambda;
     double lambdaG = reward_config::kLambdaG;
     double lambdaT = reward_config::kLambdaT;
-    double lambdaB = reward_config::kLambdaB;
     double epsilon = reward_config::kEpsilon;
 };
 
@@ -70,7 +68,6 @@ public:
     std::string tile(Position localPos) const;
     std::vector<Position> observedPositions() const;
     std::vector<Position> knownCoins() const;
-    int knownBossTriggerCount() const;
 
 private:
     std::map<Position, LocalCell> cells_;
@@ -93,7 +90,8 @@ public:
     bool isInsideEstimatedMaze(Position localPos) const;
     int estimatedUnknownCount() const;
     int estimatedObservedCount() const;
-    std::vector<int> unknownComponentSizesTouchingView(Position localTarget) const;
+    std::vector<int> unknownComponentSizesTouchingView(Position localTarget, const LocalKnownMap &localMap,
+                                                       int areaMax) const;
 
 private:
     static constexpr int kEstimatedSize = 15;

@@ -32,6 +32,10 @@ cmake_install.cmake
 *.log
 *.tlog
 
+# Data
+data/
+train/
+
 # OS
 .DS_Store
 Thumbs.db

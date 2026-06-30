@@ -79,7 +79,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\AIPlayerEngine.cpp" />
+    <ClCompile Include="src\AStarStrategy.cpp" />
+    <ClCompile Include="src\BossStrategy.cpp" />
+    <ClCompile Include="src\BranchBoundStrategy.cpp" />
     <ClCompile Include="src\DesktopApp.cpp" />
+    <ClCompile Include="src\DijkstraStrategy.cpp" />
+    <ClCompile Include="src\DivideConquerStrategy.cpp" />
     <ClCompile Include="src\RealtimeGreedyStrategy.cpp" />
     <ClCompile Include="src\Reward.cpp" />
     <ClCompile Include="src\ShortestPathStrategy.cpp" />
@@ -87,6 +92,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\AIPlayerEngine.h" />
+    <ClInclude Include="src\AStarStrategy.h" />
+    <ClInclude Include="src\BossStrategy.h" />
+    <ClInclude Include="src\BranchBoundStrategy.h" />
+    <ClInclude Include="src\DijkstraStrategy.h" />
+    <ClInclude Include="src\DivideConquerStrategy.h" />
     <ClInclude Include="src\GameTypes.h" />
     <ClInclude Include="src\RealtimeGreedyStrategy.h" />
     <ClInclude Include="src\RewardConfig.h" />

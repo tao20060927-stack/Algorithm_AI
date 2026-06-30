@@ -8,10 +8,10 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
+#include "BossStrategy.h"
 #include "GameTypes.h"
 #include "RealtimeGreedyStrategy.h"
 #include "ShortestPathStrategy.h"
@@ -21,20 +21,51 @@
 using ai_player::Json;
 using ai_player::MazeData;
 using ai_player::Position;
-using ai_player::Skill;
 using ai_player::kDirs;
 using ai_player::kInvalid;
 using ai_player::planAdventurePath;
 using ai_player::GreedyCandidateDebug;
+using ai_player::GreedyRejectedDebug;
 using ai_player::GreedyRunResult;
 using ai_player::GreedyStepDebug;
 using ai_player::realtimeGreedyRun;
+using ai_player::runBossBattleJson;
 using ai_player::scoreDelta;
 
 namespace {
 std::string errorJson(const std::string &message)
 {
     return Json{{"ok", false}, {"error", message}}.dump();
+}
+
+/**
+ * 功能：判断算法名称是否属于 reward 目标选择后的两点路由算法。
+ * 输入：
+ *   - algorithm：前端传入的算法名称。
+ * 输出：
+ *   - 返回该算法是否只作为实时探索中的路由器使用。
+ * 关键逻辑：
+ *   - 分治、分支限界、Dijkstra 和 A* 不再承担完整探险目标选择，只在 reward 选定目标后负责路径搜索。
+ */
+bool isRewardRouterAlgorithm(const std::string &algorithm)
+{
+    return algorithm == "dijkstra" || algorithm == "astar" || algorithm == "branch_bound" ||
+           algorithm == "divide_conquer";
+}
+
+/**
+ * 功能：生成运行结果缓存键。
+ * 输入：
+ *   - algorithm：算法名称，不同算法必须保留不同缓存结果。
+ *   - inputJson：前端传入的任务 JSON 字符串。
+ * 输出：
+ *   - 返回算法名和规范化 JSON 拼接后的缓存键。
+ * 关键逻辑：
+ *   - 先解析再 dump，避免只因为 JSON 空格、换行不同就重新运行后端算法。
+ */
+std::string makeRunCacheKey(const std::string &algorithm, const std::string &inputJson)
+{
+    return algorithm + "\n" + Json::parse(inputJson).dump();
 }
 
 MazeData parseMaze(const std::string &inputJson)
@@ -72,34 +103,6 @@ MazeData parseMaze(const std::string &inputJson)
     return data;
 }
 
-Json visibleCells(const MazeData &data, Position pos)
-{
-    Json visible = Json::array();
-    const int rows = static_cast<int>(data.grid.size());
-    const int cols = static_cast<int>(data.grid[0].size());
-    for (int row = pos.first - 1; row <= pos.first + 1; ++row) {
-        for (int col = pos.second - 1; col <= pos.second + 1; ++col) {
-            if (row >= 0 && col >= 0 && row < rows && col < cols) {
-                visible.push_back({{"row", row}, {"col", col}, {"tile", data.grid[row][col]}});
-            }
-        }
-    }
-    return visible;
-}
-
-Json observedCellsJson(const MazeData &data, const std::vector<std::vector<bool>> &observed)
-{
-    Json cells = Json::array();
-    for (int row = 0; row < static_cast<int>(data.grid.size()); ++row) {
-        for (int col = 0; col < static_cast<int>(data.grid[row].size()); ++col) {
-            if (observed[row][col]) {
-                cells.push_back({{"row", row}, {"col", col}, {"tile", data.grid[row][col]}});
-            }
-        }
-    }
-    return cells;
-}
-
 Json positionJson(Position pos)
 {
     if (pos == kInvalid) return nullptr;
@@ -119,7 +122,18 @@ Json greedyCandidateDebugJson(const GreedyCandidateDebug &candidate)
             {"pathLen", candidate.pathLength},
             {"marginPenalty", candidate.marginPenalty},
             {"projectedResource", candidate.projectedResource},
+            {"unknownComponents", candidate.unknownComponents},
+            {"unknownComponentSum", candidate.unknownComponentSum},
             {"selected", candidate.selected}};
+}
+
+Json greedyRejectedDebugJson(const GreedyRejectedDebug &candidate)
+{
+    return {{"localTarget", positionJson(candidate.localTarget)},
+            {"realTarget", positionJson(candidate.realTarget)},
+            {"tile", candidate.tile},
+            {"reason", candidate.reason},
+            {"pathLen", candidate.pathLength}};
 }
 
 Json greedyStepDebugJson(const GreedyStepDebug &step)
@@ -127,6 +141,10 @@ Json greedyStepDebugJson(const GreedyStepDebug &step)
     Json candidates = Json::array();
     for (const auto &candidate : step.candidates) {
         candidates.push_back(greedyCandidateDebugJson(candidate));
+    }
+    Json rejected = Json::array();
+    for (const auto &candidate : step.rejected) {
+        rejected.push_back(greedyRejectedDebugJson(candidate));
     }
     return {{"step", step.step},
             {"localCurrent", positionJson(step.localCurrent)},
@@ -137,19 +155,15 @@ Json greedyStepDebugJson(const GreedyStepDebug &step)
             {"decision", step.decision},
             {"selectedLocal", positionJson(step.selectedLocal)},
             {"selectedReal", positionJson(step.selectedReal)},
-            {"candidates", candidates}};
+            {"candidates", candidates},
+            {"rejected", rejected}};
 }
 
 void attachGreedyDebug(Json &result, const GreedyRunResult &run)
 {
-    Json debugSteps = Json::array();
-    for (const auto &step : run.debugSteps) {
-        debugSteps.push_back(greedyStepDebugJson(step));
-    }
-    result["greedy_debug"] = debugSteps;
     const size_t count = std::min(run.debugSteps.size(), result["frames"].size());
     for (size_t i = 0; i < count; ++i) {
-        result["frames"][i]["debug"] = debugSteps[i];
+        result["frames"][i]["debug"] = greedyStepDebugJson(run.debugSteps[i]);
     }
 }
 
@@ -235,96 +249,18 @@ Json solveLockJson(const Json &source)
     return {{"ok", false}, {"password", ""}, {"tries", tries}};
 }
 
-Json runBossJson(const Json &source)
-{
-    if (!source.contains("B") || !source["B"].is_array()) {
-        return {{"ok", false}, {"error", "missing B boss HP array"}};
-    }
-    if (!source.contains("PlayerSkills") || !source["PlayerSkills"].is_array()) {
-        return {{"ok", false}, {"error", "missing PlayerSkills array"}};
-    }
-
-    const auto bossHPs = source["B"].get<std::vector<int>>();
-    std::vector<Skill> skills;
-    for (int i = 0; i < static_cast<int>(source["PlayerSkills"].size()); ++i) {
-        const auto &item = source["PlayerSkills"][i];
-        if (!item.is_array() || item.size() != 2) return {{"ok", false}, {"error", "invalid PlayerSkills item"}};
-        skills.push_back({i, item[0].get<int>(), item[1].get<int>()});
-    }
-
-    struct State {
-        std::vector<int> hp;
-        std::vector<int> cooldown;
-        int bossIndex = 0;
-        std::vector<int> sequence;
-    };
-
-    std::queue<State> queue;
-    queue.push({bossHPs, std::vector<int>(skills.size(), 0), 0, {}});
-    std::unordered_set<std::string> visited;
-    while (!queue.empty()) {
-        State state = queue.front();
-        queue.pop();
-        if (state.bossIndex >= static_cast<int>(state.hp.size())) {
-            return {{"ok", true}, {"turns", state.sequence.size()}, {"sequence", state.sequence}};
-        }
-
-        std::ostringstream key;
-        key << state.bossIndex << '|';
-        for (const int hp : state.hp) key << hp << ',';
-        key << '|';
-        for (const int cd : state.cooldown) key << cd << ',';
-        if (!visited.insert(key.str()).second) continue;
-
-        bool hasSkill = false;
-        for (int i = 0; i < static_cast<int>(skills.size()); ++i) {
-            if (state.cooldown[i] > 0) continue;
-            hasSkill = true;
-            State next = state;
-            next.hp[next.bossIndex] -= skills[i].damage;
-            if (next.hp[next.bossIndex] <= 0) {
-                next.hp[next.bossIndex] = 0;
-                ++next.bossIndex;
-            }
-            for (int &cooldown : next.cooldown) {
-                if (cooldown > 0) --cooldown;
-            }
-            next.cooldown[i] = skills[i].cooldown;
-            next.sequence.push_back(skills[i].id);
-            queue.push(std::move(next));
-        }
-        if (!hasSkill) {
-            for (int &cooldown : state.cooldown) {
-                if (cooldown > 0) --cooldown;
-            }
-            state.sequence.push_back(-1);
-            queue.push(std::move(state));
-        }
-    }
-    return {{"ok", false}, {"error", "boss battle has no solution"}};
-}
-
 Json buildResult(const MazeData &data, const std::vector<Position> &path, const std::string &mode)
 {
     Json result{{"ok", true}, {"mode", mode}, {"path", Json::array()}, {"frames", Json::array()}, {"events", Json::array()}};
     const Json lock = solveLockJson(data.source);
-    const Json boss = runBossJson(data.source);
+    const Json boss = runBossBattleJson(data.source);
     std::vector collected(data.grid.size(), std::vector<bool>(data.grid[0].size(), false));
-    std::vector observed(data.grid.size(), std::vector<bool>(data.grid[0].size(), false));
     bool lockEvent = false;
     bool bossEvent = false;
     int resource = 0;
 
     for (size_t step = 0; step < path.size(); ++step) {
         const auto [row, col] = path[step];
-        for (int r = row - 1; r <= row + 1; ++r) {
-            for (int c = col - 1; c <= col + 1; ++c) {
-                if (r >= 0 && c >= 0 && r < static_cast<int>(data.grid.size()) &&
-                    c < static_cast<int>(data.grid[0].size())) {
-                    observed[r][c] = true;
-                }
-            }
-        }
         const std::string tile = data.grid[row][col];
         int delta = 0;
         if (!collected[row][col]) {
@@ -338,9 +274,7 @@ Json buildResult(const MazeData &data, const std::vector<Position> &path, const 
                                     {"col", col},
                                     {"tile", tile},
                                     {"delta", delta},
-                                    {"resource", resource},
-                                    {"observed", observedCellsJson(data, observed)},
-                                    {"visible", visibleCells(data, {row, col})}});
+                                    {"resource", resource}});
         if (tile == "L" && !lockEvent) {
             result["events"].push_back({{"step", step}, {"type", "lock"}, {"result", lock}});
             lockEvent = true;
@@ -366,13 +300,16 @@ Json buildResult(const MazeData &data, const std::vector<Position> &path, const 
 std::string AIPlayerEngine::RunRealtimeGreedy(const std::string &inputJson)
 {
     try {
+        const std::string cacheKey = makeRunCacheKey("greedy", inputJson);
+        if (const auto it = resultCache_.find(cacheKey); it != resultCache_.end()) return it->second;
+
         const MazeData data = parseMaze(inputJson);
         const GreedyRunResult run = realtimeGreedyRun(data);
         Json result = buildResult(data, run.path, "realtime-greedy");
         attachGreedyDebug(result, run);
-        result["greedy_formula"] = "additive reward = DeltaR + omegaI*alpha*I_proxy + beta*tailUB - qEff*pathLen - marginPenalty; beta=1; tailUB excludes coins already covered by path_t";
+        result["greedy_formula"] = "additive reward = DeltaR + omegaI*alpha*I_proxy + beta*tailUB - qEffLengthWeight*qEff*pathLen - marginPenalty; tailUB excludes coins already covered by path_t";
         result["memory_policy"] = "online memory: each decision uses the local_known_map updated by 3x3 observations";
-        return result.dump();
+        return resultCache_[cacheKey] = result.dump();
     } catch (const std::exception &ex) {
         return errorJson(ex.what());
     }
@@ -381,11 +318,22 @@ std::string AIPlayerEngine::RunRealtimeGreedy(const std::string &inputJson)
 std::string AIPlayerEngine::RunAdventure(const std::string &inputJson, const std::string &algorithm)
 {
     try {
-        if (algorithm != "smart" && algorithm != "dijkstra" && algorithm != "astar") {
-            throw std::runtime_error("unsupported algorithm: " + algorithm);
+        if (algorithm != "smart" && algorithm != "dijkstra" && algorithm != "astar" &&
+            algorithm != "branch_bound" && algorithm != "divide_conquer") {
+                throw std::runtime_error("unsupported algorithm: " + algorithm);
         }
+        const std::string cacheKey = makeRunCacheKey(algorithm, inputJson);
+        if (const auto it = resultCache_.find(cacheKey); it != resultCache_.end()) return it->second;
+
         const MazeData data = parseMaze(inputJson);
-        return buildResult(data, planAdventurePath(data, algorithm), algorithm).dump();
+        if (isRewardRouterAlgorithm(algorithm)) {
+            const GreedyRunResult run = realtimeGreedyRun(data, algorithm);
+            Json result = buildResult(data, run.path, algorithm);
+            attachGreedyDebug(result, run);
+            result["router_mode"] = "reward selects target; selected algorithm only routes on local_known_map";
+            return resultCache_[cacheKey] = result.dump();
+        }
+        return resultCache_[cacheKey] = buildResult(data, planAdventurePath(data, algorithm), algorithm).dump();
     } catch (const std::exception &ex) {
         return errorJson(ex.what());
     }
@@ -403,7 +351,7 @@ std::string AIPlayerEngine::SolveLock(const std::string &inputJson)
 std::string AIPlayerEngine::RunBoss(const std::string &inputJson)
 {
     try {
-        return runBossJson(Json::parse(inputJson)).dump();
+        return runBossBattleJson(Json::parse(inputJson)).dump();
     } catch (const std::exception &ex) {
         return errorJson(ex.what());
     }

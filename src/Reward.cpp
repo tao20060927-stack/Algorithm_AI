@@ -21,7 +21,7 @@ int pathLength(const std::vector<Position> &path)
 /**
  * 功能：记录局部坐标中的已观察格子。
  * 输入：
- *   - localPos：以入口为原点的局部坐标。
+ *   - localPos：以起始位置为局部原点的坐标。
  *   - tile：3x3 视野实际观察到的格子类型。
  * 输出：
  *   - 无返回值，更新局部记忆地图。
@@ -190,7 +190,7 @@ bool LocalKnownMap::isTriggered(Position localPos) const
  * 输出：
  *   - 返回该格是否被标记为 Boss 触发区。
  * 关键逻辑：
- *   - 触发区可通行，但保留该标记用于动态 alpha 的 Boss 风险统计和战斗触发判断。
+ *   - 触发区可通行，保留该标记用于表达 Boss 正邻接格语义，不再参与 reward 风险计算。
  */
 bool LocalKnownMap::isBossTrigger(Position localPos) const
 {
@@ -205,13 +205,13 @@ bool LocalKnownMap::isBossTrigger(Position localPos) const
  * 输出：
  *   - 返回该格能否在 known_map 路径搜索中通行。
  * 关键逻辑：
- *   - 只允许穿过已观察、非墙、非 Boss 本体的格子；Boss 正邻接格可走，走到即触发 Boss 战。
+ *   - 只禁止墙；Boss 本体按普通已观察格参与规划和价值计算。
  */
 bool LocalKnownMap::isWalkableForPlanning(Position localPos) const
 {
     const auto it = cells_.find(localPos);
     if (it == cells_.end() || !it->second.observed) return false;
-    return it->second.tile != "#" && it->second.tile != "B";
+    return it->second.tile != "#";
 }
 
 /**
@@ -266,32 +266,13 @@ std::vector<Position> LocalKnownMap::knownCoins() const
 }
 
 /**
- * 功能：统计当前已知 Boss 触发区数量。
+ * 功能：构造局部姿态估计器并初始化候选嵌入。
  * 输入：
  *   - 无。
  * 输出：
- *   - 返回触发区格子数量。
+ *   - 创建包含多原点假设的估计器。
  * 关键逻辑：
- *   - 动态 alpha 用该数量估计未知区域风险，优先统计触发区而不是 Boss 本体。
- */
-int LocalKnownMap::knownBossTriggerCount() const
-{
-    int count = 0;
-    for (const auto &[pos, cell] : cells_) {
-        (void)pos;
-        if (cell.bossTrigger) ++count;
-    }
-    return count;
-}
-
-/**
- * 功能：构造入口位置估计器并初始化候选嵌入。
- * 输入：
- *   - 无。
- * 输出：
- *   - 创建包含多入口假设的估计器。
- * 关键逻辑：
- *   - 不使用真实入口坐标，只枚举四条边界中心附近的估计入口。
+ *   - 不使用真实起点坐标，枚举局部原点在 15x15 估计地图中的所有可能位置。
  */
 MapPoseEstimator::MapPoseEstimator()
 {
@@ -299,22 +280,24 @@ MapPoseEstimator::MapPoseEstimator()
 }
 
 /**
- * 功能：初始化四条边界的多入口候选。
+ * 功能：初始化局部原点的多位置候选。
  * 输入：
  *   - 无。
  * 输出：
  *   - 重置候选集合和默认最佳候选。
  * 关键逻辑：
- *   - 每条边界取全部 15 个位置，避免真实入口不在中央附近时所有候选被错误判为不可行。
+ *   - 枚举 15x15 内全部原点位置和四种朝向，避免默认把起点当作边界入口。
  */
 void MapPoseEstimator::initialize()
 {
     hypotheses_.clear();
-    for (int offset = 0; offset < kEstimatedSize; ++offset) {
-        hypotheses_.push_back({{0, offset}, Direction::Down, 0.0, true});
-        hypotheses_.push_back({{14, offset}, Direction::Up, 0.0, true});
-        hypotheses_.push_back({{offset, 0}, Direction::Right, 0.0, true});
-        hypotheses_.push_back({{offset, 14}, Direction::Left, 0.0, true});
+    for (int row = 0; row < kEstimatedSize; ++row) {
+        for (int col = 0; col < kEstimatedSize; ++col) {
+            hypotheses_.push_back({{row, col}, Direction::Down, 0.0, true});
+            hypotheses_.push_back({{row, col}, Direction::Up, 0.0, true});
+            hypotheses_.push_back({{row, col}, Direction::Right, 0.0, true});
+            hypotheses_.push_back({{row, col}, Direction::Left, 0.0, true});
+        }
     }
     best_ = hypotheses_[0];
     observedEstimated_.clear();
@@ -373,7 +356,7 @@ void MapPoseEstimator::update(const LocalKnownMap &localMap, Position localCurre
 }
 
 /**
- * 功能：返回当前最佳入口嵌入假设。
+ * 功能：返回当前最佳原点嵌入假设。
  * 输入：
  *   - 无。
  * 输出：
@@ -389,7 +372,7 @@ MapEmbeddingHypothesis MapPoseEstimator::best() const
 /**
  * 功能：把局部坐标映射到估计 15x15 坐标。
  * 输入：
- *   - localPos：以入口为原点的局部坐标。
+ *   - localPos：以起始位置为局部原点的坐标。
  * 输出：
  *   - 返回估计全局坐标。
  * 关键逻辑：
@@ -443,85 +426,58 @@ int MapPoseEstimator::estimatedObservedCount() const
 }
 
 /**
- * 功能：统计与目标 3x3 视野接触的未知连通块大小。
+ * 功能：统计目标格能够展开到的未知区域大小。
  * 输入：
  *   - localTarget：候选目标的局部坐标。
+ *   - localMap：AI 当前局部记忆地图，已观察格会作为 BFS 障碍。
+ *   - areaMax：未知区域计数上限，达到该值即可停止搜索。
  * 输出：
- *   - 返回接触到的每个未知连通块大小。
+ *   - 返回一个元素，表示从目标格出发最多能 BFS 展开的未观察格数量，范围为 [0, areaMax]。
  * 关键逻辑：
- *   - 在估计 15x15 网格中只按 observed=false 做连通块，不读取真实迷宫内容。
+ *   - 以目标格为起点，已观察格视为不可逾越障碍，未知格可以继续扩展。
+ *   - 如果能搜索到 areaMax 个未知格，就直接按 areaMax 计；如果封闭且不足 areaMax，则按实际搜索到的数量计。
+ *   - 该函数不使用绝对位置估计和真实迷宫尺寸，避免起点不在边缘或迷宫大小变化时产生 15x15 映射错误。
  */
-std::vector<int> MapPoseEstimator::unknownComponentSizesTouchingView(Position localTarget) const
+std::vector<int> MapPoseEstimator::unknownComponentSizesTouchingView(Position localTarget, const LocalKnownMap &localMap,
+                                                                     int areaMax) const
 {
-    bool observed[15][15]{};
-    for (const auto &pos : observedEstimated_) {
-        if (insideEstimated(pos)) observed[pos.first][pos.second] = true;
-    }
+    if (areaMax <= 0) return {0};
 
-    int componentId[15][15];
-    std::fill(&componentId[0][0], &componentId[0][0] + 225, -1);
-    std::vector<int> componentSizes;
-    int nextId = 0;
-    for (int row = 0; row < 15; ++row) {
-        for (int col = 0; col < 15; ++col) {
-            if (observed[row][col] || componentId[row][col] != -1) continue;
-            std::queue<Position> queue;
-            queue.push({row, col});
-            componentId[row][col] = nextId;
-            int size = 0;
-            while (!queue.empty()) {
-                const auto [r, c] = queue.front();
-                queue.pop();
-                ++size;
-                for (const auto [dr, dc] : kDirs) {
-                    const Position next{r + dr, c + dc};
-                    if (!insideEstimated(next) || observed[next.first][next.second] ||
-                        componentId[next.first][next.second] != -1) {
-                        continue;
-                    }
-                    componentId[next.first][next.second] = nextId;
-                    queue.push(next);
-                }
+    const auto observedPositions = localMap.observedPositions();
+    std::set<Position> observed(observedPositions.begin(), observedPositions.end());
+    std::set<Position> visited;
+    std::queue<Position> queue;
+    queue.push(localTarget);
+    visited.insert(localTarget);
+    int expandableCount = 0;
+    while (!queue.empty()) {
+        const auto [row, col] = queue.front();
+        queue.pop();
+        if (!observed.count({row, col})) {
+            ++expandableCount;
+            if (expandableCount >= areaMax) return {areaMax};
+        }
+        for (const auto [dr, dc] : kDirs) {
+            const Position next{row + dr, col + dc};
+            if (visited.count(next) || observed.count(next)) {
+                continue;
             }
-            componentSizes.push_back(size);
-            ++nextId;
+            visited.insert(next);
+            queue.push(next);
         }
     }
-
-    std::set<int> touching;
-    const Position center = localToEstimatedGlobal(localTarget);
-    for (int row = center.first - 1; row <= center.first + 1; ++row) {
-        for (int col = center.second - 1; col <= center.second + 1; ++col) {
-            if (!insideEstimated({row, col})) continue;
-            if (!observed[row][col] && componentId[row][col] >= 0) {
-                touching.insert(componentId[row][col]);
-            }
-            for (const auto [dr, dc] : kDirs) {
-                const Position next{row + dr, col + dc};
-                if (insideEstimated(next) && !observed[next.first][next.second] &&
-                    componentId[next.first][next.second] >= 0) {
-                    touching.insert(componentId[next.first][next.second]);
-                }
-            }
-        }
-    }
-
-    std::vector<int> sizes;
-    for (const int id : touching) {
-        sizes.push_back(componentSizes[id]);
-    }
-    return sizes;
+    return {expandableCount};
 }
 
 /**
  * 功能：按指定候选嵌入映射局部坐标。
  * 输入：
  *   - localPos：局部坐标。
- *   - hypothesis：入口和朝向假设。
+ *   - hypothesis：局部原点和朝向假设。
  * 输出：
  *   - 返回估计 15x15 坐标。
  * 关键逻辑：
- *   - 不依赖真实全局坐标，只根据入口假设对局部坐标旋转和平移。
+ *   - 不依赖真实全局坐标，只根据原点假设对局部坐标旋转和平移。
  */
 Position MapPoseEstimator::mapWithHypothesis(Position localPos, const MapEmbeddingHypothesis &hypothesis) const
 {
@@ -590,24 +546,15 @@ int PathValueEvaluator::pathResourceDelta(const std::vector<Position> &path, con
  * 输入：
  *   - target：候选目标局部坐标。
  *   - localMap：局部记忆地图。
- *   - poseEstimator：当前估计 15x15 嵌入。
+ *   - poseEstimator：保留的姿态估计参数；当前 I_proxy 的 |C| 不再依赖绝对位置估计。
  * 输出：
- *   - 返回新视野数量和按当前价值密度估计后的未知连通块贡献之和。
+ *   - 返回按当前价值密度估计后的未知连通块贡献。
  * 关键逻辑：
- *   - N_new 只看目标 3x3 中尚未观察且位于估计迷宫内的格子。
- *   - 未知连通块贡献使用 min(|C|, Amax) * rho_area_value，避免只按面积奖励危险未知区。
+ *   - |C| 由局部记忆地图 BFS 得到，达到 Amax 即停止；封闭小区域按实际未知格数量计。
  */
 double PathValueEvaluator::informationProxy(Position target, const LocalKnownMap &localMap,
                                             const MapPoseEstimator &poseEstimator) const
 {
-    int newVisible = 0;
-    for (int row = target.first - 1; row <= target.first + 1; ++row) {
-        for (int col = target.second - 1; col <= target.second + 1; ++col) {
-            const Position pos{row, col};
-            if (poseEstimator.isInsideEstimatedMaze(pos) && !localMap.isObserved(pos)) ++newVisible;
-        }
-    }
-
     int observedCount = 0;
     int goldCount = 0;
     int trapCount = 0;
@@ -620,15 +567,14 @@ double PathValueEvaluator::informationProxy(Position target, const LocalKnownMap
     const double denominator = observedCount + parameters_.lambda;
     const double rhoG = (goldCount + parameters_.lambdaG) / denominator;
     const double rhoT = (trapCount + parameters_.lambdaT) / denominator;
-    const double rhoB = (localMap.knownBossTriggerCount() + parameters_.lambdaB) / denominator;
-    const double areaValue = 50.0 * rhoG - 30.0 * rhoT - parameters_.kappaB * rhoB;
-    const double areaValueDensity = std::clamp(std::max(areaValue, 0.0) / 50.0, 0.0, 1.0);
+    const double areaValue = 50.0 * rhoG - 30.0 * rhoT;
+    const double areaValueDensity = std::clamp(std::max(areaValue, 0.0) / 50.0, parameters_.rhoAreaValueMin, 1.0);
 
     double componentValue = 0.0;
-    for (const int size : poseEstimator.unknownComponentSizesTouchingView(target)) {
+    for (const int size : poseEstimator.unknownComponentSizesTouchingView(target, localMap, parameters_.areaMax)) {
         componentValue += static_cast<double>(std::min(size, parameters_.areaMax)) * areaValueDensity;
     }
-    return newVisible + parameters_.kappaU * componentValue;
+    return parameters_.kappaU * componentValue;
 }
 
 /**
@@ -706,7 +652,7 @@ double PathValueEvaluator::marginPenalty(int projectedResource) const
  * 输出：
  *   - 返回新的 alpha_t_smooth。
  * 关键逻辑：
- *   - 金币提高探索价值，陷阱和 Boss 触发区降低探索价值，再用 theta 做指数平滑。
+ *   - 金币提高探索价值，陷阱降低探索价值；Boss 只作为战斗事件处理，不再作为风险密度参与 alpha。
  */
 double PathValueEvaluator::updateAlphaSmooth(double previousAlpha, const LocalKnownMap &localMap,
                                              const MapPoseEstimator &poseEstimator) const
@@ -724,13 +670,12 @@ double PathValueEvaluator::updateAlphaSmooth(double previousAlpha, const LocalKn
     const double denominator = observedCount + parameters_.lambda;
     const double rhoG = (goldCount + parameters_.lambdaG) / denominator;
     const double rhoT = (trapCount + parameters_.lambdaT) / denominator;
-    const double rhoB = (localMap.knownBossTriggerCount() + parameters_.lambdaB) / denominator;
     const double rhoU = static_cast<double>(poseEstimator.estimatedUnknownCount()) / 225.0;
-    const double unknownValue = 50.0 * rhoG - 30.0 * rhoT - parameters_.kappaB * rhoB;
+    const double unknownValue = 50.0 * rhoG - 30.0 * rhoT;
 
     const double raw = parameters_.alpha0 *
                        (1.0 + parameters_.wU * rhoU + parameters_.wV * std::max(unknownValue, 0.0) / 50.0) /
-                       (1.0 + parameters_.wR * (rhoT + parameters_.cB * rhoB));
+                       (1.0 + parameters_.wR * rhoT);
     const double clipped = std::clamp(raw, parameters_.alphaMin, parameters_.alphaMax);
     return parameters_.theta * previousAlpha + (1.0 - parameters_.theta) * clipped;
 }
@@ -747,7 +692,7 @@ double PathValueEvaluator::updateAlphaSmooth(double previousAlpha, const LocalKn
  *   - 返回加性 reward 分数，非法路径返回负无穷。
  * 关键逻辑：
  *   - 若 DeltaR、I_proxy、tailUB 都为 0，说明目标没有任何收益来源，直接判为负无穷。
- *   - 其余情况使用 DeltaR + omegaI*alpha*I + beta*tailUB - qEff*len - margin，不加入最近访问惩罚。
+ *   - 其余情况使用 DeltaR + omegaI*alpha*I + beta*tailUB - qEffLengthWeight*qEff*len - margin，不加入最近访问惩罚。
  */
 double PathValueEvaluator::evaluate(const std::vector<Position> &path, Position target,
                                     const PathValueContext &context, const LocalKnownMap &localMap,
@@ -768,7 +713,7 @@ double PathValueEvaluator::evaluate(const std::vector<Position> &path, Position 
     const double qEff = computeQEff(context, localMap);
     const double margin = marginPenalty(projectedResource);
     return delta + parameters_.omegaI * context.state.alphaSmooth * info + parameters_.beta * tail -
-           qEff * pathLength(path) - margin;
+           parameters_.qEffLengthWeight * qEff * pathLength(path) - margin;
 }
 
 /**

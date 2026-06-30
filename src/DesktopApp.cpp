@@ -4,18 +4,28 @@
 
 #include <algorithm>
 #include <map>
+#include <memory>
+#include <mutex>
+#include <stdexcept>
 #include <string>
+#include <thread>
+#include <utility>
 
 #include "AIPlayerEngine.h"
+#include "GameTypes.h"
 #include "WebView2.h"
 
 using Microsoft::WRL::Callback;
 using Microsoft::WRL::ComPtr;
+using ai_player::Json;
 
 namespace {
 HWND g_hwnd = nullptr;
 ComPtr<ICoreWebView2Controller> g_controller;
 ComPtr<ICoreWebView2> g_webview;
+AIPlayerEngine g_asyncEngine;
+std::mutex g_asyncEngineMutex;
+constexpr UINT WM_APP_WEB_RESULT = WM_APP + 1;
 
 std::wstring buildAppHtml()
 {
@@ -32,7 +42,7 @@ button{cursor:pointer;padding:0 10px}button:hover{border-color:#2563eb;color:#25
 .app{display:grid;grid-template-columns:360px 1fr;height:100vh}.side{padding:18px;background:#fff;border-right:1px solid #d7dde5;display:flex;flex-direction:column;gap:12px}
 h1{font-size:24px;margin:0}p{margin:4px 0 0;color:#667085;font-size:13px}.label{display:flex;flex-direction:column;gap:7px;color:#667085;font-size:13px}
 textarea{height:300px;resize:vertical;border:1px solid #d7dde5;border-radius:6px;padding:10px;font:12px/1.45 Consolas,monospace;background:#fbfcfe}
-.row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.row.five{grid-template-columns:repeat(5,1fr)}
+    .row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.row.four{grid-template-columns:repeat(4,1fr)}.row.five{grid-template-columns:repeat(5,1fr)}
 .main{display:grid;grid-template-rows:auto minmax(0,1fr)170px;gap:14px;padding:18px;min-width:0}
 .stats{display:grid;grid-template-columns:repeat(4,minmax(110px,1fr));gap:10px}.stat,.panel{background:#fff;border:1px solid #d7dde5;border-radius:8px;padding:11px}
 .stat span{display:block;color:#667085;font-size:12px}.stat strong{font-size:22px;display:block;margin-top:3px}.board-wrap{background:#fff;border:1px solid #d7dde5;border-radius:8px;padding:16px;display:grid;place-items:center;overflow:auto}
@@ -48,8 +58,8 @@ textarea{height:300px;resize:vertical;border:1px solid #d7dde5;border-radius:6px
   <section class="side">
     <header><h1>AI 玩家桌面端</h1><p>WebView2 本地软件，C++ 后端驱动</p></header>
     <label class="label"><span>任务 JSON</span><textarea id="jsonInput"></textarea></label>
-    <div class="row"><button id="sample1">15x15 模板</button><button id="sample2">test 示例</button><button id="validate">校验</button></div>
-    <label class="label"><span>算法</span><select id="algorithm"><option value="smart">完整探险 Smart</option><option value="dijkstra">完整探险 Dijkstra</option><option value="astar">完整探险 A*</option><option value="greedy">3x3 实时贪心</option></select></label>
+    <div class="row four"><button id="sample1">15x15 模板</button><button id="sample2">test 示例</button><button id="loadJson">加载</button><button id="validate">校验</button></div>
+    <label class="label"><span>算法</span><select id="algorithm"><option value="smart">完整探险 Smart</option><option value="dijkstra">Reward + Dijkstra 路由</option><option value="astar">Reward + A* 路由</option><option value="branch_bound">Reward + 分支限界路由</option><option value="divide_conquer">Reward + 分治路由</option><option value="greedy">3x3 实时贪心</option></select></label>
     <div class="row five"><button id="run">运行</button><button id="pause">暂停</button><button id="prev">上一步</button><button id="step">单步</button><button id="reset">重置</button></div>
     <button id="viewToggle">评分监控</button>
     <label class="label"><span>速度</span><input id="speed" type="range" min="80" max="1200" value="360"></label>
@@ -65,28 +75,40 @@ textarea{height:300px;resize:vertical;border:1px solid #d7dde5;border-radius:6px
 <script>
 const sample1=`{"maze":[["#","#","#","#","#","#","#","#","#","#","#","S","#","#","#"],["#"," ","G","T","G","#"," "," "," "," "," "," "," "," ","#"],["#","#","#","G","#","#","#"," ","#","#","#","#","#","#","#"],["#"," ","T"," "," "," ","#"," "," "," ","#"," ","#","G","#"],["#","#","#"," ","#"," ","#","#","#"," ","#"," ","#","G","#"],["#"," ","G"," ","#"," ","#","G"," "," "," "," ","G","T","#"],["#","#","#"," ","#"," ","#","#","#","#","#","T","#","T","#"],["#"," ","#"," ","#"," ","#"," "," "," "," "," ","#"," ","#"],["#","T","#"," ","#"," ","#","#","#"," ","#","#","#"," ","#"],["#"," "," "," ","#"," "," "," "," "," "," "," ","#"," ","#"],["#"," ","#","#","#","#","#","#","#","#","#","#","#","#","#"],["#"," "," "," ","#","G","#"," ","T"," ","#","G","T"," ","#"],["#","#","#"," ","#","T","#"," ","#","#","#","#","#"," ","#"],["#"," "," "," "," "," "," "," ","B"," "," "," ","T","G","#"],["#","#","#","#","#","#","#","#","#","E","#","#","#","#","#"]],"B":[11,13,9,15],"PlayerSkills":[[8,4],[2,0],[4,2],[6,3]],"minRouds":20,"CoinConsumption":5}`;
 const sample2=`{"maze":[["#","S","#","#","#","#","#","#","#","#","#"],["#"," ","#"," "," "," "," "," "," "," ","#"],["#"," ","#","#","#"," ","#"," ","#","#","#"],["#"," ","#"," "," "," ","#"," ","#","G","#"],["#","L","#"," ","#"," ","#"," ","#"," ","#"],["#"," ","#"," ","#"," ","#"," "," "," ","E"],["#","B","#"," ","#","#","#"," ","#","#","#"],["#"," "," "," "," "," ","#"," "," ","T","#"],["#"," ","#","#","#","#","#","#","#","G","#"],["#"," ","#"," "," "," ","G","T"," ","T","#"],["#","#","#","#","#","#","#","#","#","#","#"]],"B":[13,18,19,14],"PlayerSkills":[[4,1],[3,2],[5,2],[9,4],[2,0]],"C":[[2,0]],"L":"54a76d5a60849cbe4a6e7f75d830fe73f413586f329cec620eaf69bea2ade132","password":"946"}`;
-const $=id=>document.getElementById(id);let maze=null,result=null,idx=0,timer=null,lastInput="",lastAlg="",monitorMode=false;
-function api(){return chrome.webview.hostObjects.ai}function setState(s){$("state").textContent=s}
+)HTML" + LR"HTML(
+const $=id=>document.getElementById(id);let maze=null,result=null,idx=0,timer=null,mazeSignature="",monitorMode=false,requestSeq=1;const pendingRequests=new Map(),resultCache=new Map();
+function setState(s){$("state").textContent=s}
 function tileClass(t){return t=="#"?"wall":t=="S"?"start":t=="E"?"exit":t=="G"?"gold":t=="T"?"trap":t=="L"?"lock":t=="B"?"boss":"road"}
 function fmt(v,d=2){return Number.isFinite(Number(v))?Number(v).toFixed(d):"-"}
 function posText(p){return p?`(${p.row},${p.col})`:"-"}
+function inBounds(r,c){return maze&&r>=0&&c>=0&&r<maze.length&&c<maze[0].length}
+function cellsAround(p){const cells=[];if(!p)return cells;for(let r=p.row-1;r<=p.row+1;r++)for(let c=p.col-1;c<=p.col+1;c++)if(inBounds(r,c))cells.push({row:r,col:c,tile:maze[r][c]});return cells}
+function observedSetAt(frameIndex){const seen=new Set();const path=result?.path||[];const limit=Math.min(frameIndex,path.length-1);for(let i=0;i<=limit;i++)for(const c of cellsAround(path[i]))seen.add(`${c.row},${c.col}`);return seen}
+function visibleCellsAt(f){return cellsAround(f?{row:f.row,col:f.col}:null)}
+function parseInputMaze(){const input=$("jsonInput").value.trim();if(!input)throw new Error("请输入任务 JSON");const data=JSON.parse(input);if(!Array.isArray(data.maze)||!Array.isArray(data.maze[0]))throw new Error("JSON 缺少 maze 二维数组");return {input,data,signature:JSON.stringify(data.maze)}}
+function applyMazeData(data,signature){const changed=signature!==mazeSignature;if(changed){resultCache.clear();result=null;idx=0}maze=data.maze;mazeSignature=signature;return changed}
+function call(name,...args){const id=requestSeq++;setState("运行中");return new Promise((resolve,reject)=>{pendingRequests.set(id,{resolve,reject});chrome.webview.postMessage({id,name,args})})}
+chrome.webview.addEventListener("message",event=>{const msg=event.data||{},pending=pendingRequests.get(msg.id);if(!pending)return;pendingRequests.delete(msg.id);if(msg.ok)pending.resolve(msg.result);else pending.reject(new Error(msg.error||"运行失败"))});
 function draw(){
 if(!maze)return;
 const f=result?.frames?.[idx];
-const lit=new Set((f?.observed||[]).map(c=>`${c.row},${c.col}`));
-const vis=new Set((f?.visible||[]).map(c=>`${c.row},${c.col}`));
+const preview=!result?.frames?.length;
+const lit=preview?new Set():observedSetAt(idx);
+const visible=visibleCellsAt(f);
+const vis=new Set(visible.map(c=>`${c.row},${c.col}`));
 const path=new Set((result?.path||[]).slice(0,idx+1).map(c=>`${c.row},${c.col}`));
 $("board").style.gridTemplateColumns=`repeat(${maze[0].length},1fr)`;
+$("board").style.aspectRatio=`${maze[0].length}/${maze.length}`;
 $("board").innerHTML="";
 maze.forEach((r,i)=>r.forEach((t,j)=>{
 const d=document.createElement("div");
 const k=`${i},${j}`;
 const isLit=lit.has(k);
-d.className=`cell ${isLit?tileClass(t):"unknown"}`;
+d.className=`cell ${preview||isLit?tileClass(t):"unknown"}`;
 if(isLit&&vis.has(k))d.classList.add("visible");
 if(isLit&&path.has(k))d.classList.add("path");
 if(f&&f.row==i&&f.col==j)d.classList.add("player");
-d.textContent=f&&f.row==i&&f.col==j?"P":(isLit&&t!="#"&&t!=" "?t:"");
+d.textContent=f&&f.row==i&&f.col==j?"P":((preview||isLit)&&t!="#"&&t!=" "?t:"");
 $("board").appendChild(d)
 }));
 $("resource").textContent=f?.resource??result?.resource??0;
@@ -97,10 +119,10 @@ $("bossInfo").textContent=JSON.stringify(result?.boss??{},null,2);
 $("eventInfo").textContent=JSON.stringify(result?.events??[],null,2);
 drawDebug()
 }
-function analyzeDebug(d,f){
+function analyzeDebug(d,f,visible){
 if(!d)return "当前帧没有贪心评分数据。请确认算法选择的是 3x3 实时贪心。";
 const cs=d.candidates||[],gold=cs.filter(c=>c.tile=="G"),selected=cs.find(c=>c.selected),best=[...cs].sort((a,b)=>b.score-a.score)[0];
-const visibleGold=(f?.visible||[]).some(c=>c.tile=="G");
+const visibleGold=(visible||[]).some(c=>c.tile=="G");
 if(visibleGold&&!gold.length)return "视野里有金币，但金币没有进入候选集：优先检查 observed/visited/walkable 或路径可达性。";
 if(gold.length&&best&&best.tile!="G")return `金币进入候选集，但最高分是 ${best.tile||"空格"} ${posText(best.realTarget)}：重点看 Iproxy、qEff*len、margin 是否压过金币。`;
 if(gold.length&&best?.tile=="G"&&selected&&selected.tile!="G")return "金币候选分数最高，但实际没选金币：重点检查目标保持 switchMargin 或出口/兜底逻辑。";
@@ -110,20 +132,24 @@ return cs.length?"当前没有金币候选，比较普通目标的 Iproxy、qEff
 function drawDebug(){
 const f=result?.frames?.[idx],d=f?.debug;
 $("debugSummary").innerHTML=d?`<div class="debug-grid"><div><span>决策</span><strong>${d.decision}</strong></div><div><span>alpha</span><strong>${fmt(d.alpha)}</strong></div><div><span>qEff</span><strong>${fmt(d.qEff)}</strong></div><div><span>观察率</span><strong>${fmt((d.observedRatio||0)*100,1)}%</strong></div><div><span>当前位置</span><strong>${posText(d.realCurrent)}</strong></div><div><span>选中目标</span><strong>${posText(d.selectedReal)}</strong></div></div>`:"";
-$("debugDiagnosis").textContent=analyzeDebug(d,f);
+$("debugDiagnosis").textContent=analyzeDebug(d,f,visibleCellsAt(f));
 if(!d){$("debugTable").innerHTML="";return}
-const rows=[...(d.candidates||[])].sort((a,b)=>b.score-a.score).map(c=>`<tr class="${c.selected?"selected ":""}${c.tile=="G"?"gold-row":""}"><td>${c.selected?"* ":""}${c.tile||" "}</td><td>${posText(c.realTarget)}</td><td>${fmt(c.score)}</td><td>${c.deltaR}</td><td>${fmt(c.Iproxy)}</td><td>${fmt(c.tailGain)}</td><td>${fmt(c.qEff)}</td><td>${c.pathLen}</td><td>${fmt(c.marginPenalty)}</td><td>${c.projectedResource}</td></tr>`).join("");
-$("debugTable").innerHTML=`<table class="debug-table"><thead><tr><th>目标</th><th>坐标</th><th>score</th><th>deltaR</th><th>Iproxy</th><th>tailUB</th><th>qEff</th><th>len</th><th>margin</th><th>projR</th></tr></thead><tbody>${rows}</tbody></table>`;
+const rows=[...(d.candidates||[])].sort((a,b)=>b.score-a.score).map(c=>`<tr class="${c.selected?"selected ":""}${c.tile=="G"?"gold-row":""}"><td>${c.selected?"* ":""}${c.tile||" "}</td><td>${posText(c.realTarget)}</td><td>${fmt(c.score)}</td><td>${c.deltaR}</td><td>${fmt(c.Iproxy)}</td><td>${c.unknownComponentSum??0}</td><td>${(c.unknownComponents||[]).join("+")||"0"}</td><td>${fmt(c.tailGain)}</td><td>${fmt(c.qEff)}</td><td>${c.pathLen}</td><td>${fmt(c.marginPenalty)}</td><td>${c.projectedResource}</td></tr>`).join("");
+$("debugTable").innerHTML=`<table class="debug-table"><thead><tr><th>目标</th><th>坐标</th><th>score</th><th>deltaR</th><th>Iproxy</th><th>|C|合计</th><th>|C|明细</th><th>tailUB</th><th>qEff</th><th>len</th><th>margin</th><th>projR</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
+)HTML" + LR"HTML(
 function stop(){if(timer){clearInterval(timer);timer=null}}function next(){if(!result?.frames?.length)return;idx=Math.min(idx+1,result.frames.length-1);draw();if(idx==result.frames.length-1){stop();setState(result.finished?"已抵达终点":"已停止")}}function play(){stop();timer=setInterval(next,Number($("speed").value));setState("播放中")}
-async function call(name,...args){return JSON.parse(await api()[name](...args))}
-async function run(){stop();const input=$("jsonInput").value,alg=$("algorithm").value;if(result?.frames?.length&&input==lastInput&&alg==lastAlg){draw();if(idx<result.frames.length-1)play();else setState(result.finished?"已抵达终点":"已停止");return}setState("运行中");const out=alg=="greedy"?await call("RunRealtimeGreedy",input):await call("RunAdventure",input,alg);if(!out.ok)throw new Error(out.error||"运行失败");maze=JSON.parse(input).maze;result=out;lastInput=input;lastAlg=alg;idx=0;draw();play()}
-$("sample1").onclick=()=>{$("jsonInput").value=sample1;maze=JSON.parse(sample1).maze;result=null;idx=0;draw();setState("已加载示例")};
-$("sample2").onclick=()=>{$("jsonInput").value=sample2;maze=JSON.parse(sample2).maze;result=null;idx=0;draw();setState("已加载示例")};
+function loadInputJson(){stop();const parsed=parseInputMaze();applyMazeData(parsed.data,parsed.signature);const cached=resultCache.get($("algorithm").value);if(cached)result=cached;draw();setState(`已加载 ${maze.length}x${maze[0].length}`)}
+function loadSample(text){$("jsonInput").value=text;loadInputJson();setState("已加载示例")}
+async function run(){stop();const parsed=parseInputMaze(),alg=$("algorithm").value;applyMazeData(parsed.data,parsed.signature);const cached=resultCache.get(alg);if(cached?.frames?.length){result=cached;draw();if(idx<result.frames.length-1)play();else setState(result.finished?"已抵达终点":"已停止");return}setState("运行中");const requestSignature=parsed.signature;const out=alg=="greedy"?await call("RunRealtimeGreedy",parsed.input):await call("RunAdventure",parsed.input,alg);if(requestSignature!==mazeSignature){setState("迷宫已变更，已忽略旧结果");return}if(!out.ok)throw new Error(out.error||"运行失败");result=out;resultCache.set(alg,out);idx=0;draw();play()}
+$("sample1").onclick=()=>loadSample(sample1);
+$("sample2").onclick=()=>loadSample(sample2);
+$("loadJson").onclick=()=>{try{loadInputJson()}catch(e){setState(e.message)}};
 $("validate").onclick=async()=>{try{const out=await call("ValidateMaze",$("jsonInput").value);$("eventInfo").textContent=JSON.stringify(out,null,2);setState(out.ok?"校验通过":"校验失败")}catch(e){setState(e.message)}};
 $("viewToggle").onclick=()=>{monitorMode=!monitorMode;$("boardView").classList.toggle("hidden",monitorMode);$("monitorView").classList.toggle("hidden",!monitorMode);$("viewToggle").textContent=monitorMode?"迷宫视图":"评分监控";draw()};
+$("algorithm").onchange=()=>{stop();result=resultCache.get($("algorithm").value)||null;idx=0;draw();setState(result?"已切换到缓存结果":"已切换算法")};
 $("run").onclick=()=>run().catch(e=>{stop();setState(e.message)});$("pause").onclick=()=>{stop();setState("已暂停")};$("prev").onclick=()=>{stop();if(result?.frames?.length){idx=Math.max(idx-1,0);draw()}setState("上一步")};$("step").onclick=()=>{stop();next();setState("单步")};$("reset").onclick=()=>{stop();idx=0;draw();setState("已重置")};$("speed").oninput=()=>{if(timer)play()};
-$("jsonInput").value=sample1;maze=JSON.parse(sample1).maze;draw();
+$("jsonInput").value=sample1;loadInputJson();
 </script>
 </body>
 </html>
@@ -233,6 +259,66 @@ private:
     AIPlayerEngine engine_;
 };
 
+/**
+ * 功能：把后台线程生成的 JSON 响应投递回窗口线程。
+ * 输入：
+ *   - response：要发送给 WebView 页面的 JSON 响应。
+ * 输出：
+ *   - 无返回值，通过 Windows 消息异步交给 UI 线程处理。
+ * 关键逻辑：
+ *   - WebView2 COM 对象属于 UI STA 线程，后台算法线程不能直接调用 PostWebMessageAsJson。
+ */
+void postResponseToUiThread(const Json &response)
+{
+    auto *payload = new std::wstring(widen(response.dump()));
+    PostMessageW(g_hwnd, WM_APP_WEB_RESULT, 0, reinterpret_cast<LPARAM>(payload));
+}
+
+/**
+ * 功能：在后台线程执行前端请求的 AI 计算。
+ * 输入：
+ *   - messageJson：前端通过 chrome.webview.postMessage 发送的请求 JSON。
+ * 输出：
+ *   - 无返回值，计算完成后把结果异步发回前端。
+ * 关键逻辑：
+ *   - 后台请求共享同一个 AIPlayerEngine，让 C++ 端 resultCache_ 在窗口生命周期内持续有效。
+ *   - AIPlayerEngine 内部缓存不是并发容器，因此用互斥锁串行保护算法调用。
+ *   - 返回消息保留请求 id，让前端 Promise 能对应 resolve/reject。
+ */
+void runWebRequestAsync(std::wstring messageJson)
+{
+    std::thread([messageJson = std::move(messageJson)]() {
+        Json response;
+        int id = 0;
+        try {
+            const Json request = Json::parse(narrow(messageJson));
+            id = request.value("id", 0);
+            const std::string name = request.value("name", "");
+            const Json args = request.value("args", Json::array());
+
+            std::string output;
+            std::lock_guard<std::mutex> lock(g_asyncEngineMutex);
+            if (name == "RunRealtimeGreedy" && args.size() == 1) {
+                output = g_asyncEngine.RunRealtimeGreedy(args[0].get<std::string>());
+            } else if (name == "RunAdventure" && args.size() == 2) {
+                output = g_asyncEngine.RunAdventure(args[0].get<std::string>(), args[1].get<std::string>());
+            } else if (name == "SolveLock" && args.size() == 1) {
+                output = g_asyncEngine.SolveLock(args[0].get<std::string>());
+            } else if (name == "RunBoss" && args.size() == 1) {
+                output = g_asyncEngine.RunBoss(args[0].get<std::string>());
+            } else if (name == "ValidateMaze" && args.size() == 1) {
+                output = g_asyncEngine.ValidateMaze(args[0].get<std::string>());
+            } else {
+                throw std::runtime_error("unsupported async request");
+            }
+            response = Json{{"id", id}, {"ok", true}, {"result", Json::parse(output)}};
+        } catch (const std::exception &ex) {
+            response = Json{{"id", id}, {"ok", false}, {"error", ex.what()}};
+        }
+        postResponseToUiThread(response);
+    }).detach();
+}
+
 void initializeWebView()
 {
     CreateCoreWebView2EnvironmentWithOptions(
@@ -251,12 +337,25 @@ void initializeWebView()
 
                             VARIANT host;
                             VariantInit(&host);
-                            host.vt = VT_DISPATCH;
-                            host.pdispVal = new AiHostObject();
-                            g_webview->AddHostObjectToScript(L"ai", &host);
-                            host.pdispVal->Release();
-                            static const std::wstring html = buildAppHtml();
-                            g_webview->NavigateToString(html.c_str());
+                             host.vt = VT_DISPATCH;
+                             host.pdispVal = new AiHostObject();
+                             g_webview->AddHostObjectToScript(L"ai", &host);
+                             host.pdispVal->Release();
+                             EventRegistrationToken messageToken{};
+                             g_webview->add_WebMessageReceived(
+                                 Callback<ICoreWebView2WebMessageReceivedEventHandler>(
+                                     [](ICoreWebView2 *, ICoreWebView2WebMessageReceivedEventArgs *args) -> HRESULT {
+                                         LPWSTR rawMessage = nullptr;
+                                         args->get_WebMessageAsJson(&rawMessage);
+                                         std::wstring message = rawMessage ? rawMessage : L"";
+                                         CoTaskMemFree(rawMessage);
+                                         runWebRequestAsync(std::move(message));
+                                         return S_OK;
+                                     })
+                                     .Get(),
+                                 &messageToken);
+                             static const std::wstring html = buildAppHtml();
+                             g_webview->NavigateToString(html.c_str());
                             return S_OK;
                         })
                         .Get());
@@ -268,6 +367,13 @@ void initializeWebView()
 LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 {
     switch (message) {
+        case WM_APP_WEB_RESULT: {
+            std::unique_ptr<std::wstring> payload(reinterpret_cast<std::wstring *>(lparam));
+            if (g_webview && payload) {
+                g_webview->PostWebMessageAsJson(payload->c_str());
+            }
+            return 0;
+        }
         case WM_SIZE:
             resizeWebView();
             return 0;

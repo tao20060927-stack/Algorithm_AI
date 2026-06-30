@@ -2,6 +2,7 @@
 #define AI_PLAYER_ENGINE_H
 
 #include <string>
+#include <unordered_map>
 
 class AIPlayerEngine {
 public:
@@ -10,6 +11,9 @@ public:
     std::string SolveLock(const std::string &inputJson);
     std::string RunBoss(const std::string &inputJson);
     std::string ValidateMaze(const std::string &inputJson);
+
+private:
+    std::unordered_map<std::string, std::string> resultCache_;
 };
 
 #endif

@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-#include "GameTypes.h"
+#include "Reward.h"
 
 namespace ai_player {
 struct GreedyCandidateDebug {
@@ -19,7 +19,17 @@ struct GreedyCandidateDebug {
     int pathLength = 0;
     double marginPenalty = 0.0;
     int projectedResource = 0;
+    std::vector<int> unknownComponents;
+    int unknownComponentSum = 0;
     bool selected = false;
+};
+
+struct GreedyRejectedDebug {
+    Position localTarget{kInvalid};
+    Position realTarget{kInvalid};
+    std::string tile;
+    std::string reason;
+    int pathLength = 0;
 };
 
 struct GreedyStepDebug {
@@ -33,6 +43,7 @@ struct GreedyStepDebug {
     Position selectedLocal{kInvalid};
     Position selectedReal{kInvalid};
     std::vector<GreedyCandidateDebug> candidates;
+    std::vector<GreedyRejectedDebug> rejected;
 };
 
 struct GreedyRunResult {
@@ -40,8 +51,10 @@ struct GreedyRunResult {
     std::vector<GreedyStepDebug> debugSteps;
 };
 
-std::vector<Position> realtimeGreedyPath(const MazeData &data);
-GreedyRunResult realtimeGreedyRun(const MazeData &data);
+std::vector<Position> realtimeGreedyPath(const MazeData &data, const std::string &routeAlgorithm = "greedy",
+                                         RewardParameters parameters = {});
+GreedyRunResult realtimeGreedyRun(const MazeData &data, const std::string &routeAlgorithm = "greedy",
+                                  RewardParameters parameters = {});
 } // namespace ai_player
 
 #endif
