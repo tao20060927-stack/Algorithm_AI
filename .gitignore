@@ -2,6 +2,7 @@
 .vs/
 *.vcxproj.user
 *.user
+enc_temp_folder/
 
 # Build output
 bin/
