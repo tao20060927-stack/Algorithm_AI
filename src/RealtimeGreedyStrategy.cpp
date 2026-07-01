@@ -221,7 +221,10 @@ private:
     {
         std::vector<Position> targets;
         for (const auto &pos : localMap_.observedPositions()) {
-            if (pos == localCurrent || localMap_.isVisited(pos) || !localMap_.isWalkableForPlanning(pos)) continue;
+            if (pos == localCurrent || pos == localExit_ || localMap_.isVisited(pos) ||
+                !localMap_.isWalkableForPlanning(pos)) {
+                continue;
+            }
             if (routePath(localCurrent, pos).empty()) continue;
             targets.push_back(pos);
         }
@@ -331,6 +334,7 @@ private:
         debug.decision = "no-candidate";
         recordRejectedTargets(localCurrent, debug);
         double bestScore = -1e18;
+        bool hasWorthwhileTarget = false;
         Position bestTarget = kInvalid;
         std::vector<Position> bestPath;
 
@@ -354,6 +358,10 @@ private:
                 poseEstimator_.unknownComponentSizesTouchingView(target, localMap_, evaluator_.parameters().areaMax);
             item.unknownComponentSum = 0;
             for (const int size : item.unknownComponents) item.unknownComponentSum += size;
+            if (!context.exitPath.empty() && context.exitPath.size() > 1) {
+                const int exitLength = static_cast<int>(context.exitPath.size()) - 1;
+                hasWorthwhileTarget = hasWorthwhileTarget || score > debug.qEff * (item.pathLength - exitLength);
+            }
             debug.candidates.push_back(item);
             if (score > bestScore) {
                 bestScore = score;
@@ -362,7 +370,7 @@ private:
             }
         }
 
-        if (shouldGoExit(context, bestScore)) {
+        if (shouldGoExit(context, bestScore, hasWorthwhileTarget)) {
             currentTarget_ = localExit_;
             currentTargetScore_ = bestScore;
             debug.decision = "exit";
@@ -428,15 +436,18 @@ private:
      * 输入：
      *   - context：包含出口路径的评分上下文。
      *   - bestScore：当前最佳探索目标分数。
- * 输出：
- *   - 返回是否应直接去出口。
- * 关键逻辑：
- *   - 出口可达且探索收益不超过 tau 时停止探索。
- */
-    bool shouldGoExit(const PathValueContext &context, double bestScore) const
+     *   - hasWorthwhileTarget：是否存在 reward 足以覆盖相对出口绕路机会成本的候选目标。
+     * 输出：
+     *   - 返回是否应直接去出口。
+     * 关键逻辑：
+     *   - 出口可达且探索收益不超过 tau 时停止探索。
+     *   - 即使 bestScore 超过 tau，也必须存在目标高于 q_eff * (len(target)-len(exit))，否则说明探索目标补偿不了绕路机会成本。
+     */
+    bool shouldGoExit(const PathValueContext &context, double bestScore, bool hasWorthwhileTarget) const
     {
         if (context.exitPath.empty() || context.exitPath.size() <= 1) return false;
-        return bestScore <= evaluator_.parameters().tau;
+        if (bestScore <= evaluator_.parameters().tau) return true;
+        return !hasWorthwhileTarget;
     }
 
     /**

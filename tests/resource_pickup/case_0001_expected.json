@@ -1,0 +1,11 @@
+{
+  "case_id": 1,
+  "algorithm": "greedy best-R/L among all shortest paths",
+  "resource": 50,
+  "steps": 1,
+  "score_ratio": 50.0,
+  "path": [
+    {"row": 1, "col": 1},
+    {"row": 1, "col": 2}
+  ]
+}

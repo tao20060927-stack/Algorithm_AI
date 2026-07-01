@@ -47,10 +47,10 @@ textarea{height:300px;resize:vertical;border:1px solid #d7dde5;border-radius:6px
 .stats{display:grid;grid-template-columns:repeat(4,minmax(110px,1fr));gap:10px}.stat,.panel{background:#fff;border:1px solid #d7dde5;border-radius:8px;padding:11px}
 .stat span{display:block;color:#667085;font-size:12px}.stat strong{font-size:22px;display:block;margin-top:3px}.board-wrap{background:#fff;border:1px solid #d7dde5;border-radius:8px;padding:16px;display:grid;place-items:center;overflow:auto}
 #board{display:grid;gap:2px;width:min(72vh,100%);max-width:740px;aspect-ratio:1/1}.cell{display:grid;place-items:center;border-radius:3px;min-width:0;min-height:0;font-weight:700;font-size:13px;border:1px solid rgba(0,0,0,.06)}
-.unknown{background:#111827;color:#111827}.wall{background:#263241}.road{background:#f8fafc}.start{background:#dbeafe;color:#1d4ed8}.exit{background:#16a34a;color:#fff}.gold{background:#f7c948}.trap{background:#e05d5d;color:#fff}.lock{background:#0f766e;color:#fff}.boss{background:#7c3aed;color:#fff}
+.unknown{background:#111827;color:#111827}.wall{background:#263241}.road{background:#f8fafc}.start{background:#dbeafe;color:#1d4ed8}.exit{background:#16a34a;color:#fff}.gold{background:#f7c948}.trap{background:#e05d5d;color:#fff}.boss{background:#7c3aed;color:#fff}
 .path{outline:2px solid rgba(37,99,235,.55);outline-offset:-2px}.visible{filter:brightness(1.08)}.player{box-shadow:inset 0 0 0 3px #111827}
 .monitor{background:#fff;border:1px solid #d7dde5;border-radius:8px;padding:16px;overflow:auto;width:100%;height:100%}.hidden{display:none}.debug-grid{display:grid;grid-template-columns:repeat(6,minmax(90px,1fr));gap:8px;margin-bottom:12px}.debug-grid div{border:1px solid #e1e7ef;border-radius:6px;padding:8px;background:#fbfcfe}.debug-grid span{display:block;color:#667085;font-size:11px}.debug-grid strong{font-size:16px}.diagnosis{border:1px solid #d7dde5;border-radius:6px;padding:10px;margin-bottom:12px;background:#f8fafc;color:#17202c}.debug-table{width:100%;border-collapse:collapse;font-size:12px}.debug-table th,.debug-table td{border-bottom:1px solid #e1e7ef;padding:7px;text-align:right;white-space:nowrap}.debug-table th:first-child,.debug-table td:first-child{text-align:left}.debug-table tr.selected{background:#ecfdf3}.debug-table tr.gold-row{box-shadow:inset 3px 0 0 #f7c948}
-.details{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;min-height:0}.panel h2{font-size:14px;margin:0 0 8px}pre{margin:0;max-height:110px;overflow:auto;white-space:pre-wrap;color:#667085;font-size:12px}
+.details{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;min-height:0}.panel h2{font-size:14px;margin:0 0 8px}pre{margin:0;max-height:110px;overflow:auto;white-space:pre-wrap;color:#667085;font-size:12px}
 </style>
 </head>
 <body>
@@ -58,8 +58,8 @@ textarea{height:300px;resize:vertical;border:1px solid #d7dde5;border-radius:6px
   <section class="side">
     <header><h1>AI 玩家桌面端</h1><p>WebView2 本地软件，C++ 后端驱动</p></header>
     <label class="label"><span>任务 JSON</span><textarea id="jsonInput"></textarea></label>
-    <div class="row four"><button id="sample1">15x15 模板</button><button id="sample2">test 示例</button><button id="loadJson">加载</button><button id="validate">校验</button></div>
-    <label class="label"><span>算法</span><select id="algorithm"><option value="smart">完整探险 Smart</option><option value="dijkstra">Reward + Dijkstra 路由</option><option value="astar">Reward + A* 路由</option><option value="branch_bound">Reward + 分支限界路由</option><option value="divide_conquer">Reward + 分治路由</option><option value="greedy">3x3 实时贪心</option></select></label>
+    <div class="row five"><button id="sample1">15x15 模板</button><button id="sample2">test 示例</button><button id="sample3">3x3 示例</button><button id="loadJson">加载</button><button id="validate">校验</button></div>
+    <label class="label"><span>算法</span><select id="algorithm"><option value="smart">完整探险 Smart</option><option value="dijkstra">Reward + Dijkstra 路由</option><option value="astar">Reward + A* 路由</option><option value="branch_bound">Reward + 分支限界路由</option><option value="divide_conquer">Reward + 分治路由</option><option value="greedy">3x3 实时贪心</option><option value="resource_pickup">3x3 资源贪心</option></select></label>
     <div class="row five"><button id="run">运行</button><button id="pause">暂停</button><button id="prev">上一步</button><button id="step">单步</button><button id="reset">重置</button></div>
     <button id="viewToggle">评分监控</button>
     <label class="label"><span>速度</span><input id="speed" type="range" min="80" max="1200" value="360"></label>
@@ -68,31 +68,32 @@ textarea{height:300px;resize:vertical;border:1px solid #d7dde5;border-radius:6px
     <div class="stats"><div class="stat"><span>资源</span><strong id="resource">0</strong></div><div class="stat"><span>步数</span><strong id="steps">0</strong></div><div class="stat"><span>比值</span><strong id="ratio">0.00</strong></div><div class="stat"><span>状态</span><strong id="state">待运行</strong></div></div>
     <div id="boardView" class="board-wrap"><div id="board"></div></div>
     <div id="monitorView" class="monitor hidden"><div id="debugSummary"></div><div id="debugDiagnosis" class="diagnosis">暂无评分数据</div><div id="debugTable"></div></div>
-    <div class="details"><section class="panel"><h2>机关</h2><pre id="lockInfo">-</pre></section><section class="panel"><h2>Boss</h2><pre id="bossInfo">-</pre></section><section class="panel"><h2>事件</h2><pre id="eventInfo">-</pre></section></div>
+    <div class="details"><section class="panel"><h2>Boss</h2><pre id="bossInfo">-</pre></section><section class="panel"><h2>事件</h2><pre id="eventInfo">-</pre></section></div>
   </section>
 </main>
 )HTML") + LR"HTML(
 <script>
 const sample1=`{"maze":[["#","#","#","#","#","#","#","#","#","#","#","S","#","#","#"],["#"," ","G","T","G","#"," "," "," "," "," "," "," "," ","#"],["#","#","#","G","#","#","#"," ","#","#","#","#","#","#","#"],["#"," ","T"," "," "," ","#"," "," "," ","#"," ","#","G","#"],["#","#","#"," ","#"," ","#","#","#"," ","#"," ","#","G","#"],["#"," ","G"," ","#"," ","#","G"," "," "," "," ","G","T","#"],["#","#","#"," ","#"," ","#","#","#","#","#","T","#","T","#"],["#"," ","#"," ","#"," ","#"," "," "," "," "," ","#"," ","#"],["#","T","#"," ","#"," ","#","#","#"," ","#","#","#"," ","#"],["#"," "," "," ","#"," "," "," "," "," "," "," ","#"," ","#"],["#"," ","#","#","#","#","#","#","#","#","#","#","#","#","#"],["#"," "," "," ","#","G","#"," ","T"," ","#","G","T"," ","#"],["#","#","#"," ","#","T","#"," ","#","#","#","#","#"," ","#"],["#"," "," "," "," "," "," "," ","B"," "," "," ","T","G","#"],["#","#","#","#","#","#","#","#","#","E","#","#","#","#","#"]],"B":[11,13,9,15],"PlayerSkills":[[8,4],[2,0],[4,2],[6,3]],"minRouds":20,"CoinConsumption":5}`;
-const sample2=`{"maze":[["#","S","#","#","#","#","#","#","#","#","#"],["#"," ","#"," "," "," "," "," "," "," ","#"],["#"," ","#","#","#"," ","#"," ","#","#","#"],["#"," ","#"," "," "," ","#"," ","#","G","#"],["#","L","#"," ","#"," ","#"," ","#"," ","#"],["#"," ","#"," ","#"," ","#"," "," "," ","E"],["#","B","#"," ","#","#","#"," ","#","#","#"],["#"," "," "," "," "," ","#"," "," ","T","#"],["#"," ","#","#","#","#","#","#","#","G","#"],["#"," ","#"," "," "," ","G","T"," ","T","#"],["#","#","#","#","#","#","#","#","#","#","#"]],"B":[13,18,19,14],"PlayerSkills":[[4,1],[3,2],[5,2],[9,4],[2,0]],"C":[[2,0]],"L":"54a76d5a60849cbe4a6e7f75d830fe73f413586f329cec620eaf69bea2ade132","password":"946"}`;
+const sample2=`{"maze":[["#","S","#","#","#","#","#","#","#","#","#"],["#"," ","#"," "," "," "," "," "," "," ","#"],["#"," ","#","#","#"," ","#"," ","#","#","#"],["#"," ","#"," "," "," ","#"," ","#","G","#"],["#"," ","#"," ","#"," ","#"," ","#"," ","#"],["#"," ","#"," ","#"," ","#"," "," "," ","E"],["#","B","#"," ","#","#","#"," ","#","#","#"],["#"," "," "," "," "," ","#"," "," ","T","#"],["#"," ","#","#","#","#","#","#","#","G","#"],["#"," ","#"," "," "," ","G","T"," ","T","#"],["#","#","#","#","#","#","#","#","#","#","#"]],"B":[13,18,19,14],"PlayerSkills":[[4,1],[3,2],[5,2],[9,4],[2,0]]}`;
+const sample3=`{"case_id":2,"grid":[[".","T","G"],[".","P","T"],[".","T","G"]]}`;
 )HTML" + LR"HTML(
 const $=id=>document.getElementById(id);let maze=null,result=null,idx=0,timer=null,mazeSignature="",monitorMode=false,requestSeq=1;const pendingRequests=new Map(),resultCache=new Map();
 function setState(s){$("state").textContent=s}
-function tileClass(t){return t=="#"?"wall":t=="S"?"start":t=="E"?"exit":t=="G"?"gold":t=="T"?"trap":t=="L"?"lock":t=="B"?"boss":"road"}
+function tileClass(t){return t=="#"?"wall":t=="S"||t=="P"?"start":t=="E"?"exit":t=="G"?"gold":t=="T"?"trap":t=="B"?"boss":"road"}
 function fmt(v,d=2){return Number.isFinite(Number(v))?Number(v).toFixed(d):"-"}
 function posText(p){return p?`(${p.row},${p.col})`:"-"}
 function inBounds(r,c){return maze&&r>=0&&c>=0&&r<maze.length&&c<maze[0].length}
 function cellsAround(p){const cells=[];if(!p)return cells;for(let r=p.row-1;r<=p.row+1;r++)for(let c=p.col-1;c<=p.col+1;c++)if(inBounds(r,c))cells.push({row:r,col:c,tile:maze[r][c]});return cells}
 function observedSetAt(frameIndex){const seen=new Set();const path=result?.path||[];const limit=Math.min(frameIndex,path.length-1);for(let i=0;i<=limit;i++)for(const c of cellsAround(path[i]))seen.add(`${c.row},${c.col}`);return seen}
 function visibleCellsAt(f){return cellsAround(f?{row:f.row,col:f.col}:null)}
-function parseInputMaze(){const input=$("jsonInput").value.trim();if(!input)throw new Error("请输入任务 JSON");const data=JSON.parse(input);if(!Array.isArray(data.maze)||!Array.isArray(data.maze[0]))throw new Error("JSON 缺少 maze 二维数组");return {input,data,signature:JSON.stringify(data.maze)}}
-function applyMazeData(data,signature){const changed=signature!==mazeSignature;if(changed){resultCache.clear();result=null;idx=0}maze=data.maze;mazeSignature=signature;return changed}
+function parseInputMaze(){const input=$("jsonInput").value.trim();if(!input)throw new Error("请输入任务 JSON");const data=JSON.parse(input);const grid=Array.isArray(data.maze)?data.maze:data.grid;if(!Array.isArray(grid)||!Array.isArray(grid[0]))throw new Error("JSON 缺少 maze 或 grid 二维数组");return {input,data,grid,signature:JSON.stringify(grid)}}
+function applyMazeData(data,signature){const changed=signature!==mazeSignature;if(changed){resultCache.clear();result=null;idx=0}maze=Array.isArray(data.maze)?data.maze:data.grid;mazeSignature=signature;return changed}
 function call(name,...args){const id=requestSeq++;setState("运行中");return new Promise((resolve,reject)=>{pendingRequests.set(id,{resolve,reject});chrome.webview.postMessage({id,name,args})})}
 chrome.webview.addEventListener("message",event=>{const msg=event.data||{},pending=pendingRequests.get(msg.id);if(!pending)return;pendingRequests.delete(msg.id);if(msg.ok)pending.resolve(msg.result);else pending.reject(new Error(msg.error||"运行失败"))});
 function draw(){
 if(!maze)return;
 const f=result?.frames?.[idx];
-const preview=!result?.frames?.length;
+const preview=!result?.frames?.length||result?.mode=="resource-pickup-3x3";
 const lit=preview?new Set():observedSetAt(idx);
 const visible=visibleCellsAt(f);
 const vis=new Set(visible.map(c=>`${c.row},${c.col}`));
@@ -105,8 +106,8 @@ const d=document.createElement("div");
 const k=`${i},${j}`;
 const isLit=lit.has(k);
 d.className=`cell ${preview||isLit?tileClass(t):"unknown"}`;
-if(isLit&&vis.has(k))d.classList.add("visible");
-if(isLit&&path.has(k))d.classList.add("path");
+if((preview||isLit)&&vis.has(k))d.classList.add("visible");
+if((preview||isLit)&&path.has(k))d.classList.add("path");
 if(f&&f.row==i&&f.col==j)d.classList.add("player");
 d.textContent=f&&f.row==i&&f.col==j?"P":((preview||isLit)&&t!="#"&&t!=" "?t:"");
 $("board").appendChild(d)
@@ -114,9 +115,8 @@ $("board").appendChild(d)
 $("resource").textContent=f?.resource??result?.resource??0;
 $("steps").textContent=f?.step??result?.steps??0;
 $("ratio").textContent=Number(result?.score_ratio??0).toFixed(2);
-$("lockInfo").textContent=JSON.stringify(result?.lock??{},null,2);
 $("bossInfo").textContent=JSON.stringify(result?.boss??{},null,2);
-$("eventInfo").textContent=JSON.stringify(result?.events??[],null,2);
+$("eventInfo").textContent=JSON.stringify(result?.greedy_rounds??result?.events??[],null,2);
 drawDebug()
 }
 function analyzeDebug(d,f,visible){
@@ -139,13 +139,14 @@ $("debugTable").innerHTML=`<table class="debug-table"><thead><tr><th>目标</th>
 }
 )HTML" + LR"HTML(
 function stop(){if(timer){clearInterval(timer);timer=null}}function next(){if(!result?.frames?.length)return;idx=Math.min(idx+1,result.frames.length-1);draw();if(idx==result.frames.length-1){stop();setState(result.finished?"已抵达终点":"已停止")}}function play(){stop();timer=setInterval(next,Number($("speed").value));setState("播放中")}
-function loadInputJson(){stop();const parsed=parseInputMaze();applyMazeData(parsed.data,parsed.signature);const cached=resultCache.get($("algorithm").value);if(cached)result=cached;draw();setState(`已加载 ${maze.length}x${maze[0].length}`)}
+function loadInputJson(){stop();const parsed=parseInputMaze();applyMazeData(parsed.data,parsed.signature);if(Array.isArray(parsed.data.grid)&&!Array.isArray(parsed.data.maze))$("algorithm").value="resource_pickup";const cached=resultCache.get($("algorithm").value);if(cached)result=cached;draw();setState(`已加载 ${maze.length}x${maze[0].length}`)}
 function loadSample(text){$("jsonInput").value=text;loadInputJson();setState("已加载示例")}
-async function run(){stop();const parsed=parseInputMaze(),alg=$("algorithm").value;applyMazeData(parsed.data,parsed.signature);const cached=resultCache.get(alg);if(cached?.frames?.length){result=cached;draw();if(idx<result.frames.length-1)play();else setState(result.finished?"已抵达终点":"已停止");return}setState("运行中");const requestSignature=parsed.signature;const out=alg=="greedy"?await call("RunRealtimeGreedy",parsed.input):await call("RunAdventure",parsed.input,alg);if(requestSignature!==mazeSignature){setState("迷宫已变更，已忽略旧结果");return}if(!out.ok)throw new Error(out.error||"运行失败");result=out;resultCache.set(alg,out);idx=0;draw();play()}
+async function run(){stop();const parsed=parseInputMaze();let alg=$("algorithm").value;if(Array.isArray(parsed.data.grid)&&!Array.isArray(parsed.data.maze)){alg="resource_pickup";$("algorithm").value=alg}applyMazeData(parsed.data,parsed.signature);const cached=resultCache.get(alg);if(cached?.frames?.length){result=cached;draw();if(idx<result.frames.length-1)play();else setState(result.finished?"已抵达终点":"已停止");return}setState("运行中");const requestSignature=parsed.signature;const out=alg=="resource_pickup"?await call("RunResourcePickup",parsed.input):(alg=="greedy"?await call("RunRealtimeGreedy",parsed.input):await call("RunAdventure",parsed.input,alg));if(requestSignature!==mazeSignature){setState("迷宫已变更，已忽略旧结果");return}if(!out.ok)throw new Error(out.error||"运行失败");result=out;resultCache.set(alg,out);idx=0;draw();play()}
 $("sample1").onclick=()=>loadSample(sample1);
 $("sample2").onclick=()=>loadSample(sample2);
+$("sample3").onclick=()=>{$("algorithm").value="resource_pickup";loadSample(sample3)};
 $("loadJson").onclick=()=>{try{loadInputJson()}catch(e){setState(e.message)}};
-$("validate").onclick=async()=>{try{const out=await call("ValidateMaze",$("jsonInput").value);$("eventInfo").textContent=JSON.stringify(out,null,2);setState(out.ok?"校验通过":"校验失败")}catch(e){setState(e.message)}};
+$("validate").onclick=async()=>{try{const parsed=parseInputMaze();const out=Array.isArray(parsed.data.grid)?await call("RunResourcePickup",parsed.input):await call("ValidateMaze",parsed.input);$("eventInfo").textContent=JSON.stringify(out,null,2);setState(out.ok?"校验通过":"校验失败")}catch(e){setState(e.message)}};
 $("viewToggle").onclick=()=>{monitorMode=!monitorMode;$("boardView").classList.toggle("hidden",monitorMode);$("monitorView").classList.toggle("hidden",!monitorMode);$("viewToggle").textContent=monitorMode?"迷宫视图":"评分监控";draw()};
 $("algorithm").onchange=()=>{stop();result=resultCache.get($("algorithm").value)||null;idx=0;draw();setState(result?"已切换到缓存结果":"已切换算法")};
 $("run").onclick=()=>run().catch(e=>{stop();setState(e.message)});$("pause").onclick=()=>{stop();setState("已暂停")};$("prev").onclick=()=>{stop();if(result?.frames?.length){idx=Math.max(idx-1,0);draw()}setState("上一步")};$("step").onclick=()=>{stop();next();setState("单步")};$("reset").onclick=()=>{stop();idx=0;draw();setState("已重置")};$("speed").oninput=()=>{if(timer)play()};
@@ -220,9 +221,9 @@ public:
     {
         static const std::map<std::wstring, DISPID> idsByName{{L"RunRealtimeGreedy", 1},
                                                               {L"RunAdventure", 2},
-                                                              {L"SolveLock", 3},
                                                               {L"RunBoss", 4},
-                                                              {L"ValidateMaze", 5}};
+                                                              {L"ValidateMaze", 5},
+                                                              {L"RunResourcePickup", 6}};
         for (UINT i = 0; i < count; ++i) {
             const auto it = idsByName.find(names[i]);
             if (it == idsByName.end()) return DISP_E_UNKNOWNNAME;
@@ -240,12 +241,12 @@ public:
             output = engine_.RunRealtimeGreedy(narrow(variantString(params->rgvarg[0])));
         } else if (id == 2 && params->cArgs == 2) {
             output = engine_.RunAdventure(narrow(variantString(params->rgvarg[1])), narrow(variantString(params->rgvarg[0])));
-        } else if (id == 3 && params->cArgs == 1) {
-            output = engine_.SolveLock(narrow(variantString(params->rgvarg[0])));
         } else if (id == 4 && params->cArgs == 1) {
             output = engine_.RunBoss(narrow(variantString(params->rgvarg[0])));
         } else if (id == 5 && params->cArgs == 1) {
             output = engine_.ValidateMaze(narrow(variantString(params->rgvarg[0])));
+        } else if (id == 6 && params->cArgs == 1) {
+            output = engine_.RunResourcePickup(narrow(variantString(params->rgvarg[0])));
         } else {
             return DISP_E_BADPARAMCOUNT;
         }
@@ -302,12 +303,12 @@ void runWebRequestAsync(std::wstring messageJson)
                 output = g_asyncEngine.RunRealtimeGreedy(args[0].get<std::string>());
             } else if (name == "RunAdventure" && args.size() == 2) {
                 output = g_asyncEngine.RunAdventure(args[0].get<std::string>(), args[1].get<std::string>());
-            } else if (name == "SolveLock" && args.size() == 1) {
-                output = g_asyncEngine.SolveLock(args[0].get<std::string>());
             } else if (name == "RunBoss" && args.size() == 1) {
                 output = g_asyncEngine.RunBoss(args[0].get<std::string>());
             } else if (name == "ValidateMaze" && args.size() == 1) {
                 output = g_asyncEngine.ValidateMaze(args[0].get<std::string>());
+            } else if (name == "RunResourcePickup" && args.size() == 1) {
+                output = g_asyncEngine.RunResourcePickup(args[0].get<std::string>());
             } else {
                 throw std::runtime_error("unsupported async request");
             }

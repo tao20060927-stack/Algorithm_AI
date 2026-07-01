@@ -45,7 +45,7 @@ std::string readTextFile(const std::string &path)
  * 输入：
  *   - inputJson：包含 maze 字段的任务 JSON 字符串。
  * 输出：
- *   - 返回 MazeData，包含网格、起点、终点、金币、机关和 Boss 坐标。
+ *   - 返回 MazeData，包含网格、起点、终点、金币和 Boss 坐标。
  * 关键逻辑：
  *   - 与桌面端解析规则保持一致，只接受课程设计允许的格子符号，避免训练时把脏数据送入策略。
  */
@@ -72,13 +72,12 @@ MazeData parseMaze(const std::string &inputJson)
         for (int col = 0; col < cols; ++col) {
             const std::string tile = maze[row][col].get<std::string>();
             if (tile != "#" && tile != " " && tile != "S" && tile != "E" && tile != "G" && tile != "T" &&
-                tile != "L" && tile != "B") {
+                tile != "B") {
                 throw std::runtime_error("unknown maze cell: " + tile);
             }
             data.grid[row][col] = tile;
             if (tile == "S") data.start = {row, col};
             if (tile == "E") data.exit = {row, col};
-            if (tile == "L") data.locks.push_back({row, col});
             if (tile == "B") data.bosses.push_back({row, col});
             if (tile == "G") data.golds.push_back({row, col});
         }

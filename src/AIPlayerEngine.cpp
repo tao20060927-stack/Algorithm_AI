@@ -1,11 +1,8 @@
 #include "AIPlayerEngine.h"
 
-#include <array>
 #include <cstdlib>
-#include <iomanip>
 #include <queue>
 #include <set>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -14,9 +11,9 @@
 #include "BossStrategy.h"
 #include "GameTypes.h"
 #include "RealtimeGreedyStrategy.h"
+#include "ResourcePickupStrategy.h"
 #include "ShortestPathStrategy.h"
 #include "nlohmann/json.hpp"
-#include "sha256.h"
 
 using ai_player::Json;
 using ai_player::MazeData;
@@ -31,6 +28,7 @@ using ai_player::GreedyStepDebug;
 using ai_player::realtimeGreedyRun;
 using ai_player::runBossBattleJson;
 using ai_player::scoreDelta;
+using ai_player::solveResourcePickupJson;
 
 namespace {
 std::string errorJson(const std::string &message)
@@ -90,12 +88,11 @@ MazeData parseMaze(const std::string &inputJson)
         }
         for (int col = 0; col < cols; ++col) {
             const std::string tile = maze[row][col].get<std::string>();
-            static const std::set<std::string> allowed{"#", " ", "S", "E", "G", "T", "L", "B"};
+            static const std::set<std::string> allowed{"#", " ", "S", "E", "G", "T", "B"};
             if (!allowed.count(tile)) throw std::runtime_error("unknown maze cell: " + tile);
             data.grid[row][col] = tile;
             if (tile == "S") data.start = {row, col};
             if (tile == "E") data.exit = {row, col};
-            if (tile == "L") data.locks.push_back({row, col});
             if (tile == "B") data.bosses.push_back({row, col});
             if (tile == "G") data.golds.push_back({row, col});
         }
@@ -176,86 +173,11 @@ bool isBossTriggerCell(const MazeData &data, Position pos)
     return false;
 }
 
-std::string sha256WithSalt(const std::string &input)
-{
-    BYTE salt[] = {
-        0xB2, 0x53, 0x22, 0x65, 0x7D, 0xDF, 0xB0, 0xFE,
-        0x9C, 0xDE, 0xDE, 0xFE, 0xF3, 0x1D, 0xDC, 0x3E
-    };
-    BYTE hash[SHA256_BLOCK_SIZE];
-    SHA256_CTX ctx;
-    sha256_init(&ctx);
-    sha256_update(&ctx, salt, sizeof(salt));
-    sha256_update(&ctx, reinterpret_cast<const BYTE *>(input.c_str()), input.size());
-    sha256_final(&ctx, hash);
-
-    std::ostringstream out;
-    out << std::hex << std::setfill('0');
-    for (const auto byte : hash) out << std::setw(2) << static_cast<int>(byte);
-    return out.str();
-}
-
-bool isPrimeDigit(int digit)
-{
-    return digit == 2 || digit == 3 || digit == 5 || digit == 7;
-}
-
-bool passwordMatchesClues(const std::array<int, 3> &password, const std::vector<std::vector<int>> &clues)
-{
-    for (const auto &clue : clues) {
-        if (clue == std::vector<int>{-1, -1}) {
-            std::set<int> digits(password.begin(), password.end());
-            if (digits.size() != 3) return false;
-            for (const int digit : password) {
-                if (!isPrimeDigit(digit)) return false;
-            }
-        } else if (clue.size() == 2) {
-            const int pos = clue[0] - 1;
-            if (pos < 0 || pos >= 3) return false;
-            if (clue[1] == 0 && password[pos] % 2 != 0) return false;
-            if (clue[1] == 1 && password[pos] % 2 != 1) return false;
-        } else if (clue.size() == 3) {
-            for (int i = 0; i < 3; ++i) {
-                if (clue[i] != -1 && clue[i] != password[i]) return false;
-            }
-        }
-    }
-    return true;
-}
-
-Json solveLockJson(const Json &source)
-{
-    if (!source.contains("L") || !source["L"].is_string()) {
-        return {{"ok", false}, {"error", "missing L hash"}};
-    }
-    if (!source.contains("C") || !source["C"].is_array()) {
-        return {{"ok", false}, {"error", "missing C clues"}};
-    }
-    std::vector<std::vector<int>> clues = source["C"].get<std::vector<std::vector<int>>>();
-    int tries = 0;
-    for (int a = 0; a <= 9; ++a) {
-        for (int b = 0; b <= 9; ++b) {
-            for (int c = 0; c <= 9; ++c) {
-                std::array<int, 3> password{a, b, c};
-                if (!passwordMatchesClues(password, clues)) continue;
-                const std::string text = std::to_string(a) + std::to_string(b) + std::to_string(c);
-                ++tries;
-                if (sha256WithSalt(text) == source["L"].get<std::string>()) {
-                    return {{"ok", true}, {"password", text}, {"tries", tries}};
-                }
-            }
-        }
-    }
-    return {{"ok", false}, {"password", ""}, {"tries", tries}};
-}
-
 Json buildResult(const MazeData &data, const std::vector<Position> &path, const std::string &mode)
 {
     Json result{{"ok", true}, {"mode", mode}, {"path", Json::array()}, {"frames", Json::array()}, {"events", Json::array()}};
-    const Json lock = solveLockJson(data.source);
     const Json boss = runBossBattleJson(data.source);
     std::vector collected(data.grid.size(), std::vector<bool>(data.grid[0].size(), false));
-    bool lockEvent = false;
     bool bossEvent = false;
     int resource = 0;
 
@@ -275,10 +197,6 @@ Json buildResult(const MazeData &data, const std::vector<Position> &path, const 
                                     {"tile", tile},
                                     {"delta", delta},
                                     {"resource", resource}});
-        if (tile == "L" && !lockEvent) {
-            result["events"].push_back({{"step", step}, {"type", "lock"}, {"result", lock}});
-            lockEvent = true;
-        }
         if (isBossTriggerCell(data, {row, col}) && !bossEvent) {
             result["events"].push_back({{"step", step}, {"type", "boss"}, {"result", boss}});
             bossEvent = true;
@@ -291,7 +209,6 @@ Json buildResult(const MazeData &data, const std::vector<Position> &path, const 
     result["score_ratio"] = steps == 0 ? 0.0 : static_cast<double>(resource) / steps;
     result["average_resource_per_step"] = steps == 0 ? 0.0 : static_cast<double>(resource) / steps;
     result["finished"] = !path.empty() && path.back() == data.exit;
-    result["lock"] = lock;
     result["boss"] = boss;
     return result;
 }
@@ -309,6 +226,19 @@ std::string AIPlayerEngine::RunRealtimeGreedy(const std::string &inputJson)
         attachGreedyDebug(result, run);
         result["greedy_formula"] = "additive reward = DeltaR + omegaI*alpha*I_proxy + beta*tailUB - qEffLengthWeight*qEff*pathLen - marginPenalty; tailUB excludes coins already covered by path_t";
         result["memory_policy"] = "online memory: each decision uses the local_known_map updated by 3x3 observations";
+        return resultCache_[cacheKey] = result.dump();
+    } catch (const std::exception &ex) {
+        return errorJson(ex.what());
+    }
+}
+
+std::string AIPlayerEngine::RunResourcePickup(const std::string &inputJson)
+{
+    try {
+        const std::string cacheKey = makeRunCacheKey("resource_pickup", inputJson);
+        if (const auto it = resultCache_.find(cacheKey); it != resultCache_.end()) return it->second;
+
+        const Json result = solveResourcePickupJson(Json::parse(inputJson));
         return resultCache_[cacheKey] = result.dump();
     } catch (const std::exception &ex) {
         return errorJson(ex.what());
@@ -334,15 +264,6 @@ std::string AIPlayerEngine::RunAdventure(const std::string &inputJson, const std
             return resultCache_[cacheKey] = result.dump();
         }
         return resultCache_[cacheKey] = buildResult(data, planAdventurePath(data, algorithm), algorithm).dump();
-    } catch (const std::exception &ex) {
-        return errorJson(ex.what());
-    }
-}
-
-std::string AIPlayerEngine::SolveLock(const std::string &inputJson)
-{
-    try {
-        return solveLockJson(Json::parse(inputJson)).dump();
     } catch (const std::exception &ex) {
         return errorJson(ex.what());
     }
@@ -401,7 +322,6 @@ std::string AIPlayerEngine::ValidateMaze(const std::string &inputJson)
             if (!afterBoss[pos.first][pos.second]) errors.push_back(name + " is unreachable");
         };
         requireReachable(data.exit, "exit");
-        for (const auto &pos : data.locks) requireReachable(pos, "lock");
         for (const auto &boss : data.bosses) {
             bool hasReachableTrigger = false;
             for (const auto [dr, dc] : kDirs) {

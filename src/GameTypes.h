@@ -28,7 +28,6 @@ struct MazeData {
     std::vector<std::vector<std::string>> grid;
     Position start{kInvalid};
     Position exit{kInvalid};
-    std::vector<Position> locks;
     std::vector<Position> bosses;
     std::vector<Position> golds;
 };

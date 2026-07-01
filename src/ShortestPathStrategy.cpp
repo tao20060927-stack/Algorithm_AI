@@ -53,7 +53,6 @@ std::vector<Position> planAdventurePath(const MazeData &data, const std::string 
     MazeData planningData = data;
     std::set<Position> remaining;
     for (const auto &pos : planningData.golds) remaining.insert(pos);
-    for (const auto &pos : planningData.locks) remaining.insert(pos);
     std::vector<bool> bossTriggered(planningData.bosses.size(), false);
 
     Position current = planningData.start;

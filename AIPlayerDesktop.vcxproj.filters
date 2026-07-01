@@ -35,13 +35,13 @@
     <ClCompile Include="src\RealtimeGreedyStrategy.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\ResourcePickupStrategy.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\Reward.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\ShortestPathStrategy.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="vendor\sha256.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -70,6 +70,9 @@
     <ClInclude Include="src\RealtimeGreedyStrategy.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\ResourcePickupStrategy.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="src\RewardConfig.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -80,9 +83,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="vendor\EventToken.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="vendor\sha256.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

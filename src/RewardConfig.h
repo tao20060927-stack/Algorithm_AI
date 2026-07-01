@@ -36,7 +36,7 @@ namespace ai_player::reward_config {
  */
 
 // omegaI 位于 omegaI * alpha_t_smooth * I_proxy(t)，控制探索信息价值在总分中的权重。
-inline constexpr double kOmegaI = 0.4;
+inline constexpr double kOmegaI = 0.175;
 
 // alpha0 位于 alpha_t_raw，是动态探索权重的基准值。
 inline constexpr double kAlpha0 = 4.0;
@@ -49,7 +49,7 @@ inline constexpr double kAlphaMax = 8.0;
 inline constexpr double kTheta = 0.8;
 
 // beta 位于 beta * FutureGain_marg_tailUB(t)，控制后续金币机会上界的影响；当前只作为弱 tail 上界。
-inline constexpr double kBeta = 1;
+inline constexpr double kBeta = 1.23;
 
 // kappaU 位于 I_proxy(t)，控制未知连通块面积价值对探索信息价值的贡献。
 inline constexpr double kKappaU = 60;
@@ -58,13 +58,13 @@ inline constexpr double kKappaU = 60;
 inline constexpr int kAreaMax = 12;
 
 // rhoAreaValueMin 位于 rho_area_value 的 clip 下界，避免价值密度被压到完全没有探索收益。
-inline constexpr double kRhoAreaValueMin = 0.025;
+inline constexpr double kRhoAreaValueMin = 0.001;
 
 // qMin 位于 q_eff = max(q_ref, qMin)，保证开局资源为 0 时路径长度仍有基础代价。
 inline constexpr double kQMin = 1.0;
 
 // qEffLengthWeight 位于 qEffLengthWeight * q_eff * len(path_t)，控制路径长度机会成本项的整体权重。
-inline constexpr double kQEffLengthWeight = 1.0;
+inline constexpr double kQEffLengthWeight = 0.82;
 
 // safeResource 位于 marginPenalty(r)，表示低资源安全线。
 inline constexpr int kSafeResource = 30;

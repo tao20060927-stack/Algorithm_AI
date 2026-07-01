@@ -62,7 +62,6 @@ cmake .. -G "MinGW Makefiles" && make
 |---|---|
 | `RunRealtimeGreedy(json)` | 3×3 实时贪心 + 新 reward 系统 |
 | `RunAdventure(json, algorithm)` | 全局路径规划（smart / dijkstra / astar） |
-| `SolveLock(json)` | 密码破解 |
 | `RunBoss(json)` | Boss 战最小回合求解 |
 | `ValidateMaze(json)` | 迷宫可达性校验 |
 

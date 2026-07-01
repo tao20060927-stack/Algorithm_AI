@@ -7,8 +7,8 @@
 class AIPlayerEngine {
 public:
     std::string RunRealtimeGreedy(const std::string &inputJson);
+    std::string RunResourcePickup(const std::string &inputJson);
     std::string RunAdventure(const std::string &inputJson, const std::string &algorithm);
-    std::string SolveLock(const std::string &inputJson);
     std::string RunBoss(const std::string &inputJson);
     std::string ValidateMaze(const std::string &inputJson);
 
