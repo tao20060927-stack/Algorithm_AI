@@ -1,6 +1,7 @@
 #include "RealtimeGreedyStrategy.h"
 
 #include "AStarStrategy.h"
+#include "BossStrategy.h"
 #include "BranchBoundStrategy.h"
 #include "DijkstraStrategy.h"
 #include "DivideConquerStrategy.h"
@@ -35,6 +36,12 @@ public:
         : maze_(maze), routeAlgorithm_(routeAlgorithm), evaluator_(parameters)
     {
         poseEstimator_.initialize();
+        bossBattleResult_ = runBossBattleJson(maze_.source);
+        bossBattleCanWin_ = bossBattleResult_.value("ok", false);
+        if (bossBattleResult_.contains("withinMinRounds")) {
+            bossBattleCanWin_ = bossBattleCanWin_ && bossBattleResult_["withinMinRounds"].get<bool>();
+        }
+        coinConsumption_ = bossBattleResult_.value("CoinConsumption", 0);
     }
 
     /**
@@ -62,6 +69,24 @@ public:
             applyCurrentCell(localCurrent);
             poseEstimator_.update(localMap_, localCurrent);
             state_.alphaSmooth = evaluator_.updateAlphaSmooth(state_.alphaSmooth, localMap_, poseEstimator_);
+            if (pendingRevive_ || gameOver_) {
+                GreedyStepDebug stepDebug;
+                fillStatusDebug(localCurrent, realCurrent, static_cast<int>(result.path.size()) - 1,
+                                pendingRevive_ ? "boss-revive-reset" : "boss-game-over", stepDebug);
+                result.debugSteps.push_back(std::move(stepDebug));
+                if (pendingRevive_) {
+                    pendingRevive_ = false;
+                    localCurrent = {0, 0};
+                    realCurrent = maze_.start;
+                    currentTarget_ = kInvalid;
+                    currentTargetScore_ = -1e18;
+                    currentTargetFromPocket_ = false;
+                    result.path.push_back(realCurrent);
+                    continue;
+                }
+                result.gameOver = true;
+                break;
+            }
 
             GreedyStepDebug stepDebug;
             const auto selectedPath = selectBestPath(localCurrent, realCurrent, static_cast<int>(result.path.size()) - 1,
@@ -90,6 +115,11 @@ private:
     std::map<Position, Position> realToLocal_;
     std::vector<Position> knownBosses_;
     std::vector<bool> defeatedBosses_;
+    Json bossBattleResult_;
+    bool bossBattleCanWin_ = true;
+    int coinConsumption_ = 0;
+    bool pendingRevive_ = false;
+    bool gameOver_ = false;
     Position localExit_ = kInvalid;
     Position currentTarget_ = kInvalid;
     double currentTargetScore_ = -1e18;
@@ -204,10 +234,42 @@ private:
             const int distance = std::abs(localCurrent.first - knownBosses_[i].first) +
                                  std::abs(localCurrent.second - knownBosses_[i].second);
             if (distance == 1 && !defeatedBosses_[i]) {
-                defeatedBosses_[i] = true;
-                localMap_.clearBoss(knownBosses_[i]);
+                if (bossBattleCanWin_) {
+                    defeatedBosses_[i] = true;
+                    localMap_.clearBoss(knownBosses_[i]);
+                } else if (state_.resource >= coinConsumption_) {
+                    state_.resource -= coinConsumption_;
+                    pendingRevive_ = true;
+                } else {
+                    gameOver_ = true;
+                }
             }
         }
+    }
+
+    /**
+     * 功能：构造不进行目标选择的状态调试帧。
+     * 输入：
+     *   - localCurrent/realCurrent：当前局部坐标和真实坐标。
+     *   - step：当前路径帧编号。
+     *   - decision：状态原因，例如复活或 Game Over。
+     *   - debug：输出调试帧。
+     * 输出：
+     *   - 无返回值，通过 debug 返回当前状态。
+     * 关键逻辑：
+     *   - Boss 失败复活会直接把玩家送回起点，这一帧没有普通 reward 候选，需要补一个调试帧保持前端帧序对齐。
+     */
+    void fillStatusDebug(Position localCurrent, Position realCurrent, int step, const std::string &decision,
+                         GreedyStepDebug &debug) const
+    {
+        const PathValueContext context = buildContext(localCurrent);
+        debug.step = step;
+        debug.localCurrent = localCurrent;
+        debug.realCurrent = realCurrent;
+        debug.alpha = state_.alphaSmooth;
+        debug.observedRatio = static_cast<double>(poseEstimator_.estimatedObservedCount()) / 225.0;
+        debug.qEff = evaluator_.computeQEff(context, localMap_);
+        debug.decision = decision;
     }
 
     /**

@@ -49,6 +49,9 @@ target_link_libraries(ai_player_eval PRIVATE ai_player_core)
 add_executable(resource_pickup_tests src/ResourcePickupTest.cpp)
 target_link_libraries(resource_pickup_tests PRIVATE ai_player_core)
 
+add_executable(boss_strategy_tests src/BossStrategyTest.cpp)
+target_link_libraries(boss_strategy_tests PRIVATE ai_player_core)
+
 add_executable(pocket_aware_greedy_tests src/PocketAwareGreedyTest.cpp)
 target_link_libraries(pocket_aware_greedy_tests PRIVATE ai_player_core)
 
@@ -92,6 +95,7 @@ if (MSVC)
     target_compile_options(ai_player_smoke PRIVATE /utf-8)
     target_compile_options(ai_player_eval PRIVATE /utf-8)
     target_compile_options(resource_pickup_tests PRIVATE /utf-8)
+    target_compile_options(boss_strategy_tests PRIVATE /utf-8)
     target_compile_options(pocket_aware_greedy_tests PRIVATE /utf-8)
     target_compile_options(pocket_integration_tests PRIVATE /utf-8)
 else ()

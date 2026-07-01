@@ -51,6 +51,7 @@ struct GreedyStepDebug {
 struct GreedyRunResult {
     std::vector<Position> path;
     std::vector<GreedyStepDebug> debugSteps;
+    bool gameOver = false;
 };
 
 std::vector<Position> realtimeGreedyPath(const MazeData &data, const std::string &routeAlgorithm = "greedy",

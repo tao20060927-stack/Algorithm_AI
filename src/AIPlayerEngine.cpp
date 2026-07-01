@@ -214,34 +214,69 @@ bool isBossTriggerCell(const MazeData &data, Position pos)
     return false;
 }
 
+/**
+ * 功能：判断 Boss 战是否能在限定回合内成功。
+ * 输入：
+ *   - boss：runBossBattleJson 返回的 Boss 战结果。
+ * 输出：
+ *   - 返回 Boss 战是否视为成功。
+ * 关键逻辑：
+ *   - 如果任务没有提供 minRounds，则只要 Boss 求解成功就视为可击败；提供 minRounds 时必须 withinMinRounds=true。
+ */
+bool bossBattleCanWinWithinLimit(const Json &boss)
+{
+    if (!boss.value("ok", false)) return false;
+    if (boss.contains("withinMinRounds")) return boss["withinMinRounds"].get<bool>();
+    return true;
+}
+
 Json buildResult(const MazeData &data, const std::vector<Position> &path, const std::string &mode)
 {
     Json result{{"ok", true}, {"mode", mode}, {"path", Json::array()}, {"frames", Json::array()}, {"events", Json::array()}};
     const Json boss = runBossBattleJson(data.source);
     std::vector collected(data.grid.size(), std::vector<bool>(data.grid[0].size(), false));
-    bool bossEvent = false;
+    const bool bossCanWin = bossBattleCanWinWithinLimit(boss);
+    const int reviveCost = boss.value("CoinConsumption", 0);
+    bool bossCleared = false;
+    bool gameOver = false;
     int resource = 0;
 
     for (size_t step = 0; step < path.size(); ++step) {
         const auto [row, col] = path[step];
         const std::string tile = data.grid[row][col];
         int delta = 0;
+        int paidReviveCost = 0;
+        std::string frameEvent;
         if (!collected[row][col]) {
             delta = scoreDelta(tile);
             resource += delta;
             collected[row][col] = true;
         }
-        result["path"].push_back({{"row", row}, {"col", col}});
-        result["frames"].push_back({{"step", step},
-                                    {"row", row},
-                                    {"col", col},
-                                    {"tile", tile},
-                                    {"delta", delta},
-                                    {"resource", resource}});
-        if (isBossTriggerCell(data, {row, col}) && !bossEvent) {
-            result["events"].push_back({{"step", step}, {"type", "boss"}, {"result", boss}});
-            bossEvent = true;
+        if (isBossTriggerCell(data, {row, col}) && !bossCleared) {
+            if (bossCanWin) {
+                frameEvent = "boss";
+                result["events"].push_back({{"step", step}, {"type", "boss"}, {"result", boss}});
+                bossCleared = true;
+            } else if (resource >= reviveCost) {
+                paidReviveCost = reviveCost;
+                resource -= reviveCost;
+                frameEvent = "boss_revive";
+                result["events"].push_back(
+                    {{"step", step}, {"type", "boss_revive"}, {"reviveCost", reviveCost}, {"result", boss}});
+            } else {
+                frameEvent = "boss_game_over";
+                result["events"].push_back(
+                    {{"step", step}, {"type", "boss_game_over"}, {"reviveCost", reviveCost}, {"result", boss}});
+                gameOver = true;
+            }
         }
+
+        Json frame{{"step", step}, {"row", row}, {"col", col}, {"tile", tile}, {"delta", delta}, {"resource", resource}};
+        if (paidReviveCost > 0) frame["reviveCost"] = paidReviveCost;
+        if (!frameEvent.empty()) frame["event"] = frameEvent;
+        result["path"].push_back({{"row", row}, {"col", col}});
+        result["frames"].push_back(std::move(frame));
+        if (gameOver) break;
     }
 
     const int steps = path.empty() ? 0 : static_cast<int>(path.size()) - 1;
@@ -249,7 +284,8 @@ Json buildResult(const MazeData &data, const std::vector<Position> &path, const 
     result["steps"] = steps;
     result["score_ratio"] = steps == 0 ? 0.0 : static_cast<double>(resource) / steps;
     result["average_resource_per_step"] = steps == 0 ? 0.0 : static_cast<double>(resource) / steps;
-    result["finished"] = !path.empty() && path.back() == data.exit;
+    result["finished"] = !gameOver && !path.empty() && path.back() == data.exit;
+    result["game_over"] = gameOver;
     result["boss"] = boss;
     return result;
 }
