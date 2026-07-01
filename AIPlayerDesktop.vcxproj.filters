@@ -32,6 +32,9 @@
     <ClCompile Include="src\DivideConquerStrategy.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\PocketAwareGreedy.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\RealtimeGreedyStrategy.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -65,6 +68,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\GameTypes.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\PocketAwareGreedy.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\RealtimeGreedyStrategy.h">

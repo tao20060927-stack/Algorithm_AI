@@ -344,6 +344,30 @@ Json buildFrames(const std::vector<std::vector<std::string>> &grid,
     }
     return frames;
 }
+
+/**
+ * 功能：把每轮资源贪心评分绑定到前端播放帧。
+ * 输入：
+ *   - frames：按路径步数生成的播放帧数组。
+ *   - greedyRounds：每轮贪心决策记录，step 表示该轮决策发生时的累计步数。
+ * 输出：
+ *   - 无返回值，直接给对应 frame 添加 debug 字段。
+ * 关键逻辑：
+ *   - 前端评分监控按当前播放帧读取 frames[idx].debug，因此把轮级 reward 表挂到对应步数的帧上。
+ *   - stop 轮通常发生在最终位置，若 step 超过 frames 范围则绑定到最后一帧，保证停止原因也能显示。
+ */
+void attachFrameDebug(Json &frames, const Json &greedyRounds)
+{
+    if (!frames.is_array() || frames.empty()) return;
+    for (const auto &round : greedyRounds) {
+        int step = round.value("step", 0);
+        if (step < 0) step = 0;
+        if (step >= static_cast<int>(frames.size())) step = static_cast<int>(frames.size()) - 1;
+        Json debug = round;
+        debug["resourcePickup"] = true;
+        frames[step]["debug"] = debug;
+    }
+}
 } // namespace
 
 Json solveResourcePickupJson(const Json &source)
@@ -427,6 +451,7 @@ Json solveResourcePickupJson(const Json &source)
     int goldTriggers = 0;
     int trapTriggers = 0;
     Json frames = buildFrames(grid, fullPath, resources, finalResource, goldTriggers, trapTriggers);
+    attachFrameDebug(frames, greedyRounds);
     const int finalSteps = fullPath.empty() ? 0 : static_cast<int>(fullPath.size()) - 1;
     const double ratio = finalSteps == 0 ? 0.0 : static_cast<double>(finalResource) / finalSteps;
 

@@ -75,6 +75,15 @@ inline constexpr double kLambdaMargin = 8.0;
 // switchMargin 位于目标保持条件 Score(best) > Score(currentTarget) + switchMargin，防止目标频繁横跳。
 inline constexpr double kSwitchMargin = 5.0;
 
+// pocketRadius 位于局部资源口袋识别 d(h,g)<=pocketRadius，控制一个 hub 附近多远的金币会被视为同一口袋。
+inline constexpr int kPocketRadius = 2;
+
+// pocketMu 位于 RemainI(g)=Iproxy(u)/(1+pocketMu*dist(g,u))，控制保留后续出口时的距离折扣。
+inline constexpr double kPocketMu = 0.2;
+
+// pocketLambdaRemain 位于 Score_first=Base+lambdaRemain*RemainI，控制“把高 Iproxy 金币留到后面”的影响强度。
+inline constexpr double kPocketLambdaRemain = 0.2;
+
 // tau 位于停止探索条件 bestScore <= tau，控制何时停止继续探索并转向出口。
 inline constexpr double kTau = 5.0;
 

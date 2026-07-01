@@ -4,6 +4,7 @@
 #include "BranchBoundStrategy.h"
 #include "DijkstraStrategy.h"
 #include "DivideConquerStrategy.h"
+#include "PocketAwareGreedy.h"
 #include "Reward.h"
 
 #include <algorithm>
@@ -92,6 +93,7 @@ private:
     Position localExit_ = kInvalid;
     Position currentTarget_ = kInvalid;
     double currentTargetScore_ = -1e18;
+    bool currentTargetFromPocket_ = false;
 
     /**
      * 功能：判断真实坐标是否在迷宫范围内。
@@ -335,6 +337,7 @@ private:
         recordRejectedTargets(localCurrent, debug);
         double bestScore = -1e18;
         bool hasWorthwhileTarget = false;
+        bool hasNonNegativeTarget = false;
         Position bestTarget = kInvalid;
         std::vector<Position> bestPath;
 
@@ -354,6 +357,7 @@ private:
             item.pathLength = path.empty() ? 0 : static_cast<int>(path.size()) - 1;
             item.projectedResource = state_.resource + item.deltaR;
             item.marginPenalty = item.projectedResource < 0 ? 0.0 : evaluator_.marginPenalty(item.projectedResource);
+            hasNonNegativeTarget = hasNonNegativeTarget || (!path.empty() && item.projectedResource >= 0);
             item.unknownComponents =
                 poseEstimator_.unknownComponentSizesTouchingView(target, localMap_, evaluator_.parameters().areaMax);
             item.unknownComponentSum = 0;
@@ -370,9 +374,10 @@ private:
             }
         }
 
-        if (shouldGoExit(context, bestScore, hasWorthwhileTarget)) {
+        if (shouldGoExit(context, bestScore, hasWorthwhileTarget, hasNonNegativeTarget)) {
             currentTarget_ = localExit_;
             currentTargetScore_ = bestScore;
+            currentTargetFromPocket_ = false;
             debug.decision = "exit";
             debug.selectedLocal = localExit_;
             const auto realIt = localToReal_.find(localExit_);
@@ -388,6 +393,26 @@ private:
             heldScore = evaluator_.evaluate(heldPath, currentTarget_, context, localMap_, poseEstimator_);
         }
 
+        auto pocketDecision =
+            choosePocketFirstTarget(localCurrent, context, localMap_, poseEstimator_, evaluator_);
+        attachPocketRealPositions(pocketDecision.debug);
+        debug.pocket = pocketDecision.debug;
+        if (pocketDecision.enabled && !pocketDecision.path.empty()) {
+            currentTarget_ = pocketDecision.target;
+            currentTargetScore_ = pocketDecision.score;
+            currentTargetFromPocket_ = true;
+            debug.decision = "pocket-first-target";
+            markSelectedDebug(pocketDecision.target, debug);
+            return pocketDecision.path;
+        }
+
+        if (currentTargetFromPocket_ && !heldPath.empty()) {
+            currentTargetScore_ = heldScore;
+            debug.decision = "hold-pocket-target";
+            markSelectedDebug(currentTarget_, debug);
+            return heldPath;
+        }
+
         const double switchMargin = evaluator_.parameters().switchMargin;
         const bool shouldSwitch = !bestPath.empty() &&
                                   (heldPath.empty() || bestScore > heldScore + switchMargin);
@@ -400,6 +425,7 @@ private:
         if (!bestPath.empty()) {
             currentTarget_ = bestTarget;
             currentTargetScore_ = bestScore;
+            currentTargetFromPocket_ = false;
             debug.decision = "best-target";
             markSelectedDebug(bestTarget, debug);
             return bestPath;
@@ -407,8 +433,37 @@ private:
 
         currentTarget_ = kInvalid;
         currentTargetScore_ = -1e18;
+        currentTargetFromPocket_ = false;
         debug.decision = "fallback";
         return fallbackPath(localCurrent);
+    }
+
+    /**
+     * 功能：把 pocket 调试信息中的局部坐标补充为真实坐标。
+     * 输入：
+     *   - pocket：pocket 评分调试信息。
+     * 输出：
+     *   - 无返回值，原地填充 realPocketHub、realPocketResources 和候选真实坐标。
+     * 关键逻辑：
+     *   - PocketAwareGreedy 只读取 localMap，不知道真实迷宫；真实坐标只在这里用于前端展示。
+     */
+    void attachPocketRealPositions(PocketDebug &pocket) const
+    {
+        auto toReal = [&](Position local) {
+            const auto it = localToReal_.find(local);
+            return it == localToReal_.end() ? kInvalid : it->second;
+        };
+
+        pocket.realPocketHub = toReal(pocket.pocketHub);
+        pocket.realChosenPocketTarget = toReal(pocket.chosenPocketTarget);
+        pocket.realPocketResources.clear();
+        for (const auto &resource : pocket.pocketResources) {
+            pocket.realPocketResources.push_back(toReal(resource));
+        }
+        for (auto &candidate : pocket.candidates) {
+            candidate.realTarget = toReal(candidate.target);
+            candidate.realBestRemainingTarget = toReal(candidate.bestRemainingTarget);
+        }
     }
 
     /**
@@ -437,15 +492,19 @@ private:
      *   - context：包含出口路径的评分上下文。
      *   - bestScore：当前最佳探索目标分数。
      *   - hasWorthwhileTarget：是否存在 reward 足以覆盖相对出口绕路机会成本的候选目标。
+     *   - hasNonNegativeTarget：是否存在走完后资源不为负的候选目标。
      * 输出：
      *   - 返回是否应直接去出口。
      * 关键逻辑：
+     *   - 当前 R/L 为 0 时，除非所有探索候选都会让资源变负，否则禁止提前走出口。
      *   - 出口可达且探索收益不超过 tau 时停止探索。
      *   - 即使 bestScore 超过 tau，也必须存在目标高于 q_eff * (len(target)-len(exit))，否则说明探索目标补偿不了绕路机会成本。
      */
-    bool shouldGoExit(const PathValueContext &context, double bestScore, bool hasWorthwhileTarget) const
+    bool shouldGoExit(const PathValueContext &context, double bestScore, bool hasWorthwhileTarget,
+                      bool hasNonNegativeTarget) const
     {
         if (context.exitPath.empty() || context.exitPath.size() <= 1) return false;
+        if (context.state.resource == 0 && hasNonNegativeTarget) return false;
         if (bestScore <= evaluator_.parameters().tau) return true;
         return !hasWorthwhileTarget;
     }

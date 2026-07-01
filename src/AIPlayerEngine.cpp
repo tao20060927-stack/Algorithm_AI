@@ -17,6 +17,8 @@
 
 using ai_player::Json;
 using ai_player::MazeData;
+using ai_player::PocketCandidateDebug;
+using ai_player::PocketDebug;
 using ai_player::Position;
 using ai_player::kDirs;
 using ai_player::kInvalid;
@@ -133,6 +135,44 @@ Json greedyRejectedDebugJson(const GreedyRejectedDebug &candidate)
             {"pathLen", candidate.pathLength}};
 }
 
+Json pocketCandidateDebugJson(const PocketCandidateDebug &candidate)
+{
+    return {{"target", positionJson(candidate.target)},
+            {"realTarget", positionJson(candidate.realTarget)},
+            {"pathLen", candidate.pathLength},
+            {"deltaR", candidate.deltaR},
+            {"baseScore", candidate.baseScore},
+            {"ownIproxy", candidate.ownIproxy},
+            {"bestRemainingTarget", positionJson(candidate.bestRemainingTarget)},
+            {"realBestRemainingTarget", positionJson(candidate.realBestRemainingTarget)},
+            {"bestRemainingIproxy", candidate.bestRemainingIproxy},
+            {"remainI", candidate.remainI},
+            {"scoreFirst", candidate.scoreFirst},
+            {"selected", candidate.selected}};
+}
+
+Json pocketDebugJson(const PocketDebug &pocket)
+{
+    if (!pocket.enabled) return nullptr;
+    Json resources = Json::array();
+    for (size_t i = 0; i < pocket.pocketResources.size(); ++i) {
+        resources.push_back({{"local", positionJson(pocket.pocketResources[i])},
+                             {"real", i < pocket.realPocketResources.size() ? positionJson(pocket.realPocketResources[i])
+                                                                             : Json(nullptr)}});
+    }
+    Json candidates = Json::array();
+    for (const auto &candidate : pocket.candidates) {
+        candidates.push_back(pocketCandidateDebugJson(candidate));
+    }
+    return {{"pocketHub", positionJson(pocket.pocketHub)},
+            {"realPocketHub", positionJson(pocket.realPocketHub)},
+            {"pocketResources", resources},
+            {"candidates", candidates},
+            {"chosenPocketTarget", positionJson(pocket.chosenPocketTarget)},
+            {"realChosenPocketTarget", positionJson(pocket.realChosenPocketTarget)},
+            {"reason", pocket.reason}};
+}
+
 Json greedyStepDebugJson(const GreedyStepDebug &step)
 {
     Json candidates = Json::array();
@@ -153,7 +193,8 @@ Json greedyStepDebugJson(const GreedyStepDebug &step)
             {"selectedLocal", positionJson(step.selectedLocal)},
             {"selectedReal", positionJson(step.selectedReal)},
             {"candidates", candidates},
-            {"rejected", rejected}};
+            {"rejected", rejected},
+            {"pocket", pocketDebugJson(step.pocket)}};
 }
 
 void attachGreedyDebug(Json &result, const GreedyRunResult &run)

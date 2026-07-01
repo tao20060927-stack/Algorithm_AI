@@ -85,6 +85,7 @@
     <ClCompile Include="src\DesktopApp.cpp" />
     <ClCompile Include="src\DijkstraStrategy.cpp" />
     <ClCompile Include="src\DivideConquerStrategy.cpp" />
+    <ClCompile Include="src\PocketAwareGreedy.cpp" />
     <ClCompile Include="src\RealtimeGreedyStrategy.cpp" />
     <ClCompile Include="src\ResourcePickupStrategy.cpp" />
     <ClCompile Include="src\Reward.cpp" />
@@ -98,6 +99,7 @@
     <ClInclude Include="src\DijkstraStrategy.h" />
     <ClInclude Include="src\DivideConquerStrategy.h" />
     <ClInclude Include="src\GameTypes.h" />
+    <ClInclude Include="src\PocketAwareGreedy.h" />
     <ClInclude Include="src\RealtimeGreedyStrategy.h" />
     <ClInclude Include="src\ResourcePickupStrategy.h" />
     <ClInclude Include="src\RewardConfig.h" />

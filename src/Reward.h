@@ -31,6 +31,9 @@ struct RewardParameters {
     int safeResource = reward_config::kSafeResource;
     double lambdaMargin = reward_config::kLambdaMargin;
     double switchMargin = reward_config::kSwitchMargin;
+    int pocketRadius = reward_config::kPocketRadius;
+    double pocketMu = reward_config::kPocketMu;
+    double pocketLambdaRemain = reward_config::kPocketLambdaRemain;
     double tau = reward_config::kTau;
     double wU = reward_config::kWU;
     double wV = reward_config::kWV;

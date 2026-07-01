@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "PocketAwareGreedy.h"
 #include "Reward.h"
 
 namespace ai_player {
@@ -44,6 +45,7 @@ struct GreedyStepDebug {
     Position selectedReal{kInvalid};
     std::vector<GreedyCandidateDebug> candidates;
     std::vector<GreedyRejectedDebug> rejected;
+    PocketDebug pocket;
 };
 
 struct GreedyRunResult {
