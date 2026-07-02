@@ -16,7 +16,6 @@ struct BossPlanCandidate {
     std::vector<int> cooldownAfter;
     int cooldownCostAfter = 0;
     int readyDamageAfter = 0;
-    int robustScore = -1;
     int lightScore = -1;
     int remainingTurnsAfter = 0;
     int remainingUnknownBossCount = 0;
@@ -24,12 +23,8 @@ struct BossPlanCandidate {
 
 struct PlannerMemo {
     std::map<std::string, std::vector<BossPlanCandidate>> killExact;
-    std::map<std::string, int> robustUnknown;
-    std::map<std::string, int> knownPrefix;
 };
 
-inline constexpr int kUnknownBossTurnSlack = 3;
-inline constexpr int kDefaultUnknownBossTurns = 10;
 inline constexpr int kDefaultLightBossTurns = 20;
 inline constexpr int kLightCapacityInfinity = 1000000000;
 
@@ -72,7 +67,7 @@ int readCoinConsumption(const Json &source)
  * 输出：
  *   - 返回稳定字符串键。
  * 关键逻辑：
- *   - Boss 鲁棒递推大量复用同一冷却状态，用字符串键避免为 vector 自定义哈希。
+ *   - Boss 单体击杀枚举大量复用同一冷却状态，用字符串键避免为 vector 自定义哈希。
  */
 std::string vectorKey(const std::vector<int> &values)
 {
@@ -117,24 +112,6 @@ std::string liveStateKey(int hp, const std::vector<int> &cooldown)
 }
 
 /**
- * 功能：构造 G(u,r,c) 或 F(j,r,c) 的 memo key。
- * 输入：
- *   - index：未知 Boss 数 u 或已知 Boss 下标 j。
- *   - remainingTurns：剩余回合数。
- *   - cooldown：当前冷却状态。
- * 输出：
- *   - 返回可复用的字符串 key。
- * 关键逻辑：
- *   - Hmax、skills、knownHPs 在一次顶层求解中固定，因此不需要放进 key。
- */
-std::string valueKey(int index, int remainingTurns, const std::vector<int> &cooldown)
-{
-    std::ostringstream key;
-    key << index << '|' << remainingTurns << '|' << vectorKey(cooldown);
-    return key.str();
-}
-
-/**
  * 功能：计算战后冷却成本。
  * 输入：
  *   - cooldown：战斗结束后每个技能的冷却状态。
@@ -161,7 +138,7 @@ int cooldownCostAfter(const std::vector<int> &cooldown, const std::vector<Skill>
  * 输出：
  *   - 返回冷却为 0 的技能伤害总和。
  * 关键逻辑：
- *   - 该值只作为 robustScore 相同时的稳定 tie-break，不再压过回合数和鲁棒后缀价值。
+ *   - 该值只作为 lightScore 相同时的稳定 tie-break，不再压过回合数和轻量后缀容量。
  */
 int readyDamageAfter(const std::vector<int> &cooldown, const std::vector<Skill> &skills)
 {
@@ -233,41 +210,6 @@ int minimumForcedDamagePerTurn(const std::vector<Skill> &skills)
         damage = damage == 0 ? skill.damage : std::min(damage, skill.damage);
     }
     return damage;
-}
-
-/**
- * 功能：估计全技能可用状态下若干回合内的最大循环输出。
- * 输入：
- *   - turns：允许输出的回合数，必须非负。
- *   - skills：技能列表。
- * 输出：
- *   - 返回最多 turns 回合内可打出的最大总伤害。
- * 关键逻辑：
- *   - 使用动态规划枚举冷却状态；该值是公开技能和回合预算推导出的先验，不读取未揭示 Boss 血量。
- */
-int maxDamageWithinTurns(int turns, const std::vector<Skill> &skills)
-{
-    if (turns <= 0 || skills.empty()) return 0;
-    std::map<std::vector<int>, int> states;
-    states[std::vector<int>(skills.size(), 0)] = 0;
-    int bestDamage = 0;
-
-    for (int turn = 0; turn < turns; ++turn) {
-        std::map<std::vector<int>, int> nextStates;
-        for (const auto &[cooldown, totalDamage] : states) {
-            for (const int action : availableBossActions(cooldown, skills)) {
-                int ignoredHp = 0;
-                std::vector<int> nextCooldown;
-                applyBossAction(0, cooldown, skills, action, ignoredHp, nextCooldown);
-                const int nextDamage = totalDamage + (action >= 0 ? skills[action].damage : 0);
-                auto &slot = nextStates[nextCooldown];
-                slot = std::max(slot, nextDamage);
-                bestDamage = std::max(bestDamage, nextDamage);
-            }
-        }
-        states = std::move(nextStates);
-    }
-    return bestDamage;
 }
 
 /**
@@ -615,225 +557,6 @@ BossPlanCandidate solveCurrentBossByLightCapacity(int currentBossIndex, int used
                                                            candidate.cooldownAfter, knownHPs, totalBossCount, skills);
         candidateScores.push_back(candidateLightDebugJson(candidate));
         if (betterBossPlanByLightCapacity(best, candidate)) best = std::move(candidate);
-    }
-    return best;
-}
-
-/**
- * 功能：计算未知 Boss 血量模型上界 Hmax。
- * 输入：
- *   - source：任务 JSON。
- *   - skills：技能列表。
- *   - knownHPs：当前已揭示 Boss 血量前缀。
- * 输出：
- *   - 返回未知 Boss 鲁棒计算使用的血量上界。
- * 关键逻辑：
- *   - 未提供 UnknownBossHpMax 时，用 minRounds、Boss 数量和技能循环输出估计公开先验；不读取未揭示 B。
- */
-int computeUnknownBossHpMax(const Json &source, const std::vector<Skill> &skills, const std::vector<int> &knownHPs,
-                            int totalBossCount, int minRounds)
-{
-    int hMax = 0;
-    if (source.contains("UnknownBossHpMax")) {
-        hMax = source["UnknownBossHpMax"].get<int>();
-    } else {
-        const int publicTurns =
-            minRounds >= 0 && totalBossCount > 0
-                ? (minRounds + totalBossCount - 1) / totalBossCount + kUnknownBossTurnSlack
-                : kDefaultUnknownBossTurns;
-        hMax = maxDamageWithinTurns(publicTurns, skills);
-    }
-    for (const int hp : knownHPs) hMax = std::max(hMax, hp);
-    return std::max(0, hMax);
-}
-
-int robustUnknownValue(int unknownBossCount, int remainingTurns, const std::vector<int> &cooldown,
-                       const std::vector<Skill> &skills, int hMax, PlannerMemo &memo);
-
-/**
- * 功能：计算已知 Boss 前缀从第 j 个 Boss 开始的鲁棒价值 F(j,r,c)。
- * 输入：
- *   - j：当前要处理的已知 Boss 下标。
- *   - remainingTurns：剩余回合预算。
- *   - cooldown：当前冷却状态。
- *   - knownHPs：当前已揭示 Boss 血量前缀。
- *   - totalBossCount：Boss 总数量。
- *   - skills：技能列表。
- *   - hMax：未知 Boss 先验血量上界。
- *   - memo：递推缓存。
- * 输出：
- *   - 返回完成已知后缀后，对未知 Boss 后缀的鲁棒血量阈值；不可行时返回 -1。
- * 关键逻辑：
- *   - 已知部分只使用 knownHPs 前缀；到达前缀末尾后交给 G 处理未知后缀。
- */
-int knownPrefixValue(int j, int remainingTurns, const std::vector<int> &cooldown, const std::vector<int> &knownHPs,
-                     int totalBossCount, const std::vector<Skill> &skills, int hMax, PlannerMemo &memo)
-{
-    if (remainingTurns < 0) return -1;
-    const int knownCount = static_cast<int>(knownHPs.size());
-    if (j == knownCount) {
-        return robustUnknownValue(totalBossCount - knownCount, remainingTurns, cooldown, skills, hMax, memo);
-    }
-    if (j > knownCount) return -1;
-
-    const std::string memoKey = valueKey(j, remainingTurns, cooldown);
-    if (const auto it = memo.knownPrefix.find(memoKey); it != memo.knownPrefix.end()) return it->second;
-
-    int best = -1;
-    for (int turns = 1; turns <= remainingTurns; ++turns) {
-        for (const auto &candidate : enumerateKillExactTurns(knownHPs[j], cooldown, skills, turns, memo)) {
-            const int value = knownPrefixValue(j + 1, remainingTurns - turns, candidate.cooldownAfter, knownHPs,
-                                               totalBossCount, skills, hMax, memo);
-            best = std::max(best, value);
-        }
-    }
-    memo.knownPrefix[memoKey] = best;
-    return best;
-}
-
-/**
- * 功能：计算未知后缀鲁棒血量阈值 G(u,r,c)。
- * 输入：
- *   - unknownBossCount：还剩多少个未知 Boss。
- *   - remainingTurns：剩余回合预算。
- *   - cooldown：当前冷却状态。
- *   - skills：技能列表。
- *   - hMax：未知 Boss 血量上界。
- *   - memo：递推缓存。
- * 输出：
- *   - 返回整数 H，表示可以保证处理所有血量 <= H 的未知 Boss 后缀。
- * 关键逻辑：
- *   - 对每个 H 必须验证所有 h=1..H 都有可行击杀与后继鲁棒保证；不读取真实未揭示血量。
- */
-int robustUnknownValue(int unknownBossCount, int remainingTurns, const std::vector<int> &cooldown,
-                       const std::vector<Skill> &skills, int hMax, PlannerMemo &memo)
-{
-    if (unknownBossCount == 0) return remainingTurns >= 0 ? hMax : 0;
-    if (remainingTurns <= 0) return 0;
-
-    const std::string memoKey = valueKey(unknownBossCount, remainingTurns, cooldown);
-    if (const auto it = memo.robustUnknown.find(memoKey); it != memo.robustUnknown.end()) return it->second;
-
-    const auto canGuarantee = [&](int candidateH) {
-        bool allHpHandled = true;
-        for (int hp = 1; hp <= candidateH && allHpHandled; ++hp) {
-            bool hpHandled = false;
-            for (int turns = 1; turns <= remainingTurns && !hpHandled; ++turns) {
-                for (const auto &kill : enumerateKillExactTurns(hp, cooldown, skills, turns, memo)) {
-                    const int nextValue = robustUnknownValue(unknownBossCount - 1, remainingTurns - turns,
-                                                             kill.cooldownAfter, skills, hMax, memo);
-                    if (nextValue >= candidateH) {
-                        hpHandled = true;
-                        break;
-                    }
-                }
-            }
-            allHpHandled = hpHandled;
-        }
-        return allHpHandled;
-    };
-
-    // G(H) 的可行性具有单调性：能保证更高血量时一定能保证更低血量，因此用二分避免 Hmax 变大后逐个递减。
-    int low = 0;
-    int high = hMax;
-    while (low < high) {
-        const int mid = (low + high + 1) / 2;
-        if (canGuarantee(mid)) {
-            low = mid;
-        } else {
-            high = mid - 1;
-        }
-    }
-
-    memo.robustUnknown[memoKey] = low;
-    return low;
-}
-
-/**
- * 功能：比较两个 Boss 候选方案。
- * 输入：
- *   - best：当前最优候选。
- *   - candidate：待比较候选。
- * 输出：
- *   - 返回 candidate 是否更优。
- * 关键逻辑：
- *   - 首先比较 unknown-suffix robust score；只有分数相同时才用回合、冷却成本、可用伤害和字典序稳定排序。
- */
-bool betterBossPlanByRobustValue(const BossPlanCandidate &best, const BossPlanCandidate &candidate)
-{
-    if (!candidate.ok) return false;
-    if (!best.ok) return true;
-    if (candidate.robustScore != best.robustScore) return candidate.robustScore > best.robustScore;
-    if (candidate.turns != best.turns) return candidate.turns < best.turns;
-    if (candidate.cooldownCostAfter != best.cooldownCostAfter) {
-        return candidate.cooldownCostAfter < best.cooldownCostAfter;
-    }
-    if (candidate.readyDamageAfter != best.readyDamageAfter) {
-        return candidate.readyDamageAfter > best.readyDamageAfter;
-    }
-    return candidate.sequence < best.sequence;
-}
-
-/**
- * 功能：把 Boss 候选方案转为调试 JSON。
- * 输入：
- *   - candidate：候选方案。
- *   - remainingTurnsAfter：执行该方案后的剩余回合数。
- * 输出：
- *   - 返回包含 sequence、turns、cooldownAfter、robustScore 等字段的 JSON。
- * 关键逻辑：
- *   - candidateScores 只用于解释选择过程，不参与后续计算。
- */
-Json candidateDebugJson(const BossPlanCandidate &candidate, int remainingTurnsAfter)
-{
-    return {{"sequence", candidate.sequence},
-            {"turns", candidate.turns},
-            {"cooldownAfter", candidate.cooldownAfter},
-            {"cooldownCostAfter", candidate.cooldownCostAfter},
-            {"readyDamageAfter", candidate.readyDamageAfter},
-            {"remainingTurnsAfter", remainingTurnsAfter},
-            {"robustScore", candidate.robustScore}};
-}
-
-/**
- * 功能：从当前 Boss 下标开始，为当前已揭示前缀选择本阶段最优方案。
- * 输入：
- *   - currentBossIndex：当前要打的 Boss 下标。
- *   - usedTurns：当前 attempt 已经使用的回合数。
- *   - startCooldown：当前冷却状态。
- *   - knownHPs：已揭示 Boss 血量前缀。
- *   - totalBossCount：Boss 总数量。
- *   - minRounds：总回合限制。
- *   - skills：技能列表。
- *   - hMax：未知 Boss 先验血量上界。
- *   - memo：递推缓存。
- *   - candidateScores：输出候选调试表。
- * 输出：
- *   - 返回当前 Boss 的最优阶段计划。
- * 关键逻辑：
- *   - 当前 Boss 血量只从 knownHPs[currentBossIndex] 读取；评分时只使用已揭示前缀和未知后缀鲁棒值。
- */
-BossPlanCandidate solveCurrentBossByRobustValue(int currentBossIndex, int usedTurns,
-                                                const std::vector<int> &startCooldown,
-                                                const std::vector<int> &knownHPs, int totalBossCount, int minRounds,
-                                                const std::vector<Skill> &skills, int hMax, PlannerMemo &memo,
-                                                Json &candidateScores)
-{
-    BossPlanCandidate best;
-    candidateScores = Json::array();
-    if (currentBossIndex < 0 || currentBossIndex >= static_cast<int>(knownHPs.size())) return best;
-
-    const int maxTurns = minRounds >= 0 ? minRounds - usedTurns : 20;
-    if (maxTurns <= 0) return best;
-
-    for (auto candidate :
-         enumerateKillUpToTurns(knownHPs[currentBossIndex], startCooldown, skills, maxTurns, memo)) {
-        const int remainingTurnsAfter = maxTurns - candidate.turns;
-        candidate.robustScore =
-            knownPrefixValue(currentBossIndex + 1, remainingTurnsAfter, candidate.cooldownAfter, knownHPs,
-                             totalBossCount, skills, hMax, memo);
-        candidateScores.push_back(candidateDebugJson(candidate, remainingTurnsAfter));
-        if (betterBossPlanByRobustValue(best, candidate)) best = std::move(candidate);
     }
     return best;
 }

@@ -97,7 +97,7 @@ int main()
                             Json::array({Json::array({5, 0}), Json::array({22, 4}), Json::array({40, 8})})},
                            {"minRounds", 45}};
     const Json highHpResult = runBossBattleJson(highHpInput);
-    require(highHpResult.value("ok", false), "high-HP case should be solved without robust Hmax enumeration");
+    require(highHpResult.value("ok", false), "high-HP case should be solved by light-capacity planner");
     require(highHpResult.value("algorithm", "") == "rolling_horizon_damage_capacity_boss_planner",
             "high-HP case should use rolling light-capacity planner");
     require(highHpResult.at("attempts")[0].at("phases")[0].at("candidateScores")[0].contains("lightScore"),
