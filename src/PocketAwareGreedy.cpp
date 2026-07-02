@@ -166,6 +166,12 @@ PocketDecision choosePocketFirstTarget(Position localCurrent,
         item.target = coin;
         item.pathLength = pathLength(path);
         item.deltaR = evaluator.pathResourceDelta(path, localMap);
+        if (!evaluator.pathKeepsResourceNonNegative(path, context.state.resource, localMap)) {
+            item.baseScore = -1e18;
+            item.scoreFirst = -1e18;
+            decision.debug.candidates.push_back(item);
+            continue;
+        }
         item.baseScore = item.deltaR - parameters.qEffLengthWeight * qEff * item.pathLength;
         item.ownIproxy = evaluator.informationProxy(coin, localMap, poseEstimator);
         item.bestRemainingIproxy = 0.0;

@@ -1,0 +1,26 @@
+train_0001... 1/1000 done, 0s elapsed
+train_0051... 51/1000 done, 23s elapsed
+train_0101... 101/1000 done, 41s elapsed
+train_0151... 151/1000 done, 61s elapsed
+train_0201... 200/1000 done, 84s elapsed
+train_0251... 249/1000 done, 101s elapsed
+train_0301... 298/1000 done, 121s elapsed
+train_0351... 346/1000 done, 138s elapsed
+train_0401... 395/1000 done, 159s elapsed
+train_0451... 444/1000 done, 178s elapsed
+train_0501... 493/1000 done, 199s elapsed
+train_0551... 543/1000 done, 218s elapsed
+train_0601... 590/1000 done, 236s elapsed
+train_0651... 640/1000 done, 255s elapsed
+train_0701... 690/1000 done, 274s elapsed
+train_0751... 740/1000 done, 293s elapsed
+val_0001... 789/1000 done, 312s elapsed
+val_0051... 839/1000 done, 334s elapsed
+test_0001... 889/1000 done, 355s elapsed
+test_0051... 939/1000 done, 373s elapsed
+Done in 391s
+Sorted: C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\all_ratio_sorted.jsonl (988 lines)
+Failed: C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\all_ratio_failed.jsonl (0 lines)
+Ratio: 0.2273 ~ 5.8824, mean=2.0257
+Reached exit: 988/988
+Done.

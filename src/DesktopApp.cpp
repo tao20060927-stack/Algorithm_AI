@@ -78,47 +78,78 @@ const sample2=`{"maze":[["#","S","#","#","#","#","#","#","#","#","#"],["#"," ","
 const sample3=`{"case_id":2,"grid":[[".","T","G"],[".","P","T"],[".","T","G"]]}`;
 )HTML" + LR"HTML(
 const $=id=>document.getElementById(id);let maze=null,result=null,idx=0,timer=null,mazeSignature="",monitorMode=false,requestSeq=1;const pendingRequests=new Map(),resultCache=new Map();
+const renderState={boardKey:"",cells:[],result:null,preview:null,lit:new Set(),litLimit:-1,path:new Set(),pathLimit:-1,detailsResult:undefined};
 function setState(s){$("state").textContent=s}
 function tileClass(t){return t=="#"?"wall":t=="S"||t=="P"?"start":t=="E"?"exit":t=="G"?"gold":t=="T"?"trap":t=="B"?"boss":"road"}
 function fmt(v,d=2){return Number.isFinite(Number(v))?Number(v).toFixed(d):"-"}
 function posText(p){return p?`(${p.row},${p.col})`:"-"}
 function inBounds(r,c){return maze&&r>=0&&c>=0&&r<maze.length&&c<maze[0].length}
 function cellsAround(p){const cells=[];if(!p)return cells;for(let r=p.row-1;r<=p.row+1;r++)for(let c=p.col-1;c<=p.col+1;c++)if(inBounds(r,c))cells.push({row:r,col:c,tile:maze[r][c]});return cells}
-function observedSetAt(frameIndex){const seen=new Set();const path=result?.path||[];const limit=Math.min(frameIndex,path.length-1);for(let i=0;i<=limit;i++)for(const c of cellsAround(path[i]))seen.add(`${c.row},${c.col}`);return seen}
 function visibleCellsAt(f){return cellsAround(f?{row:f.row,col:f.col}:null)}
 function parseInputMaze(){const input=$("jsonInput").value.trim();if(!input)throw new Error("请输入任务 JSON");const data=JSON.parse(input);const grid=Array.isArray(data.maze)?data.maze:data.grid;if(!Array.isArray(grid)||!Array.isArray(grid[0]))throw new Error("JSON 缺少 maze 或 grid 二维数组");return {input,data,grid,signature:JSON.stringify(grid)}}
-function applyMazeData(data,signature){const changed=signature!==mazeSignature;if(changed){resultCache.clear();result=null;idx=0}maze=Array.isArray(data.maze)?data.maze:data.grid;mazeSignature=signature;return changed}
+// 重置逐帧前缀缓存，避免切换算法、重置或回退时复用旧路径状态。
+function resetFrameCaches(){renderState.result=null;renderState.preview=null;renderState.lit=new Set();renderState.litLimit=-1;renderState.path=new Set();renderState.pathLimit=-1}
+function applyMazeData(data,signature){const changed=signature!==mazeSignature;if(changed){resultCache.clear();result=null;idx=0;renderState.boardKey="";renderState.cells=[];renderState.detailsResult=undefined;resetFrameCaches()}maze=Array.isArray(data.maze)?data.maze:data.grid;mazeSignature=signature;return changed}
 function call(name,...args){const id=requestSeq++;setState("运行中");return new Promise((resolve,reject)=>{pendingRequests.set(id,{resolve,reject});chrome.webview.postMessage({id,name,args})})}
 chrome.webview.addEventListener("message",event=>{const msg=event.data||{},pending=pendingRequests.get(msg.id);if(!pending)return;pendingRequests.delete(msg.id);if(msg.ok)pending.resolve(msg.result);else pending.reject(new Error(msg.error||"运行失败"))});
+// 棋盘格只在迷宫变化时创建；播放过程中只更新已有格子的 class 和文字。
+function ensureBoard(){
+if(!maze)return;
+const rows=maze.length,cols=maze[0].length,key=`${mazeSignature}:${rows}x${cols}`;
+if(renderState.boardKey==key&&renderState.cells.length==rows*cols)return;
+const board=$("board"),fragment=document.createDocumentFragment();
+board.style.gridTemplateColumns=`repeat(${cols},1fr)`;
+board.style.aspectRatio=`${cols}/${rows}`;
+renderState.cells=[];
+for(let i=0;i<rows;i++)for(let j=0;j<cols;j++){const d=document.createElement("div");d.className="cell unknown";fragment.appendChild(d);renderState.cells.push(d)}
+board.replaceChildren(fragment);
+renderState.boardKey=key
+}
+// observed/path 都按播放方向增量扩展；回退或切换结果时才从当前帧重新累计。
+function ensureFrameCaches(preview,frameIndex){
+const path=result?.path||[];
+const limit=Math.min(frameIndex,path.length-1);
+if(renderState.result!==result||renderState.preview!==preview||frameIndex<renderState.litLimit||frameIndex<renderState.pathLimit){resetFrameCaches();renderState.result=result;renderState.preview=preview}
+if(!preview){for(let i=renderState.litLimit+1;i<=limit;i++)for(const c of cellsAround(path[i]))renderState.lit.add(`${c.row},${c.col}`);renderState.litLimit=limit}
+for(let i=renderState.pathLimit+1;i<=limit;i++)renderState.path.add(`${path[i].row},${path[i].col}`);
+renderState.pathLimit=limit
+}
+function updateDetails(){
+if(renderState.detailsResult===result)return;
+renderState.detailsResult=result;
+$("bossInfo").textContent=JSON.stringify(result?.boss??{},null,2);
+$("eventInfo").textContent=JSON.stringify(result?.greedy_rounds??result?.events??[],null,2)
+}
 function draw(){
 if(!maze)return;
+ensureBoard();
 const f=result?.frames?.[idx];
 const preview=!result?.frames?.length||result?.mode=="resource-pickup-3x3";
-const lit=preview?new Set():observedSetAt(idx);
+ensureFrameCaches(preview,idx);
+const lit=renderState.lit;
 const visible=visibleCellsAt(f);
 const vis=new Set(visible.map(c=>`${c.row},${c.col}`));
-const path=new Set((result?.path||[]).slice(0,idx+1).map(c=>`${c.row},${c.col}`));
-$("board").style.gridTemplateColumns=`repeat(${maze[0].length},1fr)`;
-$("board").style.aspectRatio=`${maze[0].length}/${maze.length}`;
-$("board").innerHTML="";
+const path=renderState.path;
+let cellIndex=0;
 maze.forEach((r,i)=>r.forEach((t,j)=>{
-const d=document.createElement("div");
+const d=renderState.cells[cellIndex++];
 const k=`${i},${j}`;
 const isLit=lit.has(k);
-d.className=`cell ${preview||isLit?tileClass(t):"unknown"}`;
-if((preview||isLit)&&vis.has(k))d.classList.add("visible");
-if((preview||isLit)&&path.has(k))d.classList.add("path");
-if(f&&f.row==i&&f.col==j)d.classList.add("player");
-d.textContent=f&&f.row==i&&f.col==j?"P":((preview||isLit)&&t!="#"&&t!=" "?t:"");
-$("board").appendChild(d)
+let cls=`cell ${preview||isLit?tileClass(t):"unknown"}`;
+if((preview||isLit)&&vis.has(k))cls+=" visible";
+if((preview||isLit)&&path.has(k))cls+=" path";
+if(f&&f.row==i&&f.col==j)cls+=" player";
+if(d.className!==cls)d.className=cls;
+const text=f&&f.row==i&&f.col==j?"P":((preview||isLit)&&t!="#"&&t!=" "?t:"");
+if(d.textContent!==text)d.textContent=text
 }));
 $("resource").textContent=f?.resource??result?.resource??0;
 $("steps").textContent=f?.step??result?.steps??0;
 $("ratio").textContent=Number(result?.score_ratio??0).toFixed(2);
-$("bossInfo").textContent=JSON.stringify(result?.boss??{},null,2);
-$("eventInfo").textContent=JSON.stringify(result?.greedy_rounds??result?.events??[],null,2);
-drawDebug()
+updateDetails();
+if(monitorMode)drawDebug()
 }
+)HTML" + LR"HTML(
 function analyzeDebug(d,f,visible){
 if(!d)return "当前帧没有贪心评分数据。请确认算法选择的是 3x3 实时贪心。";
 if(d.pocket)return d.pocket.reason||"Pocket-aware first target greedy 已启用。";

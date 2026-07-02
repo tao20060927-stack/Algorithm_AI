@@ -25,6 +25,7 @@ struct RewardParameters {
     double beta = reward_config::kBeta;
     double kappaU = reward_config::kKappaU;
     int areaMax = reward_config::kAreaMax;
+    double knownExitAreaCap = reward_config::kKnownExitAreaCap;
     double rhoAreaValueMin = reward_config::kRhoAreaValueMin;
     double qMin = reward_config::kQMin;
     double qEffLengthWeight = reward_config::kQEffLengthWeight;
@@ -47,6 +48,7 @@ struct RewardParameters {
 struct LocalCell {
     std::string tile = "U";
     bool observed = false;
+    bool outside = false;
     bool visited = false;
     bool collected = false;
     bool triggered = false;
@@ -56,6 +58,7 @@ struct LocalCell {
 class LocalKnownMap {
 public:
     void setObserved(Position localPos, const std::string &tile);
+    void setOutside(Position localPos);
     void markBossTriggers(Position localBoss);
     void clearBoss(Position localBoss);
     void markVisited(Position localPos);
@@ -63,6 +66,7 @@ public:
     void markTriggered(Position localPos);
     bool has(Position localPos) const;
     bool isObserved(Position localPos) const;
+    bool isOutside(Position localPos) const;
     bool isVisited(Position localPos) const;
     bool isCollected(Position localPos) const;
     bool isTriggered(Position localPos) const;
@@ -70,6 +74,7 @@ public:
     bool isWalkableForPlanning(Position localPos) const;
     std::string tile(Position localPos) const;
     std::vector<Position> observedPositions() const;
+    std::vector<Position> outsidePositions() const;
     std::vector<Position> knownCoins() const;
 
 private:
@@ -89,6 +94,7 @@ public:
     void initialize();
     void update(const LocalKnownMap &localMap, Position localCurrent);
     MapEmbeddingHypothesis best() const;
+    bool isMaskActive() const;
     Position localToEstimatedGlobal(Position localPos) const;
     bool isInsideEstimatedMaze(Position localPos) const;
     int estimatedUnknownCount() const;
@@ -98,9 +104,14 @@ public:
 
 private:
     static constexpr int kEstimatedSize = 15;
+    enum class MaskSeedKind { Internal, Top, Bottom, Left, Right, TopLeft, TopRight, BottomLeft, BottomRight };
+
     std::vector<MapEmbeddingHypothesis> hypotheses_;
     MapEmbeddingHypothesis best_;
     std::set<Position> observedEstimated_;
+    bool maskSeeded_ = false;
+    bool maskActive_ = false;
+    MaskSeedKind seedKind_ = MaskSeedKind::Internal;
 
     Position mapWithHypothesis(Position localPos, const MapEmbeddingHypothesis &hypothesis) const;
 };
@@ -108,12 +119,14 @@ private:
 struct AgentState {
     int resource = 0;
     int steps = 0;
+    int collectedGold = 0;
     double alphaSmooth = 4.0;
 };
 
 struct PathValueContext {
     AgentState state;
     std::vector<Position> exitPath;
+    std::set<Position> bossGatedAreaMaxTargets;
 };
 
 class PathValueEvaluator {
@@ -121,8 +134,11 @@ public:
     explicit PathValueEvaluator(RewardParameters parameters = {});
     const RewardParameters &parameters() const;
     int pathResourceDelta(const std::vector<Position> &path, const LocalKnownMap &localMap) const;
+    bool pathKeepsResourceNonNegative(const std::vector<Position> &path, int currentResource,
+                                      const LocalKnownMap &localMap) const;
     double informationProxy(Position target, const LocalKnownMap &localMap,
-                            const MapPoseEstimator &poseEstimator) const;
+                            const MapPoseEstimator &poseEstimator, double areaCap = -1.0,
+                            bool forceAreaMax = false) const;
     double futureGainMarginal(Position target, const std::vector<Position> &path,
                               const LocalKnownMap &localMap) const;
     double computeQEff(const PathValueContext &context, const LocalKnownMap &localMap) const;

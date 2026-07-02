@@ -12,6 +12,8 @@
 #include <cmath>
 #include <climits>
 #include <map>
+#include <queue>
+#include <set>
 #include <stdexcept>
 
 namespace ai_player {
@@ -156,9 +158,12 @@ private:
         for (int dr = -1; dr <= 1; ++dr) {
             for (int dc = -1; dc <= 1; ++dc) {
                 const Position realPos{realCurrent.first + dr, realCurrent.second + dc};
-                if (!realInBounds(realPos.first, realPos.second)) continue;
-
                 const Position localPos{localCurrent.first + dr, localCurrent.second + dc};
+                if (!realInBounds(realPos.first, realPos.second)) {
+                    localMap_.setOutside(localPos);
+                    continue;
+                }
+
                 std::string tile = maze_.grid[realPos.first][realPos.second];
                 const int bossIndex = bossIndexAt(localPos);
                 if (tile == "B" && bossIndex >= 0 && defeatedBosses_[bossIndex]) {
@@ -193,6 +198,7 @@ private:
         localMap_.markVisited(localCurrent);
         if (state_.steps > 0 && localMap_.tile(localCurrent) == "G" && !localMap_.isCollected(localCurrent)) {
             state_.resource += kGoldValue;
+            ++state_.collectedGold;
             localMap_.markCollected(localCurrent);
         } else if (state_.steps > 0 && localMap_.tile(localCurrent) == "T" && !localMap_.isTriggered(localCurrent)) {
             state_.resource += kTrapValue;
@@ -350,7 +356,77 @@ private:
         if (localExit_ != kInvalid) {
             context.exitPath = routePath(localCurrent, localExit_);
         }
+        context.bossGatedAreaMaxTargets = bossGatedAreaMaxTargets(localCurrent);
         return context;
+    }
+
+    /**
+     * 功能：计算必须踏过 Boss 本体后才能到达的已知可走区域。
+     * 输入：
+     *   - localCurrent：AI 当前局部坐标。
+     * 输出：
+     *   - 返回一组局部坐标；这些格子在删掉 Boss 后不可达，但经过 Boss 本体可以到达。
+     * 关键逻辑：
+     *   - 先在局部记忆图中把所有已知 Boss 本体当作墙，求当前位置的可达集合。
+     *   - 对每个可从当前侧邻接到的 Boss，从 Boss 本体开始 BFS，凡是不在“删 Boss 可达集合”中的可走格都视为 Boss-gated 区域。
+     *   - 该集合只使用 localMap_ 和已观察 Boss，不读取真实出口位置；用于把这些目标的 |C| 按 Amax 处理。
+     */
+    std::set<Position> bossGatedAreaMaxTargets(Position localCurrent) const
+    {
+        std::set<Position> bossSet(knownBosses_.begin(), knownBosses_.end());
+        const auto walkableWithoutBoss = [&](Position pos) {
+            return !bossSet.count(pos) && localMap_.isWalkableForPlanning(pos);
+        };
+
+        std::set<Position> reachableWithoutBoss;
+        std::queue<Position> queue;
+        if (walkableWithoutBoss(localCurrent)) {
+            reachableWithoutBoss.insert(localCurrent);
+            queue.push(localCurrent);
+        }
+        while (!queue.empty()) {
+            const Position current = queue.front();
+            queue.pop();
+            for (const auto [dr, dc] : kDirs) {
+                const Position next{current.first + dr, current.second + dc};
+                if (reachableWithoutBoss.count(next) || !walkableWithoutBoss(next)) continue;
+                reachableWithoutBoss.insert(next);
+                queue.push(next);
+            }
+        }
+
+        std::set<Position> gated;
+        for (const auto &boss : knownBosses_) {
+            if (!localMap_.isWalkableForPlanning(boss)) continue;
+            bool bossReachableFromCurrentSide = false;
+            for (const auto [dr, dc] : kDirs) {
+                if (reachableWithoutBoss.count({boss.first + dr, boss.second + dc})) {
+                    bossReachableFromCurrentSide = true;
+                    break;
+                }
+            }
+            if (!bossReachableFromCurrentSide) continue;
+
+            std::set<Position> throughBossVisited;
+            std::queue<Position> throughBossQueue;
+            throughBossVisited.insert(boss);
+            throughBossQueue.push(boss);
+            while (!throughBossQueue.empty()) {
+                const Position current = throughBossQueue.front();
+                throughBossQueue.pop();
+                if (!reachableWithoutBoss.count(current)) gated.insert(current);
+                for (const auto [dr, dc] : kDirs) {
+                    const Position next{current.first + dr, current.second + dc};
+                    if (throughBossVisited.count(next) || (bossSet.count(next) && next != boss) ||
+                        !localMap_.isWalkableForPlanning(next)) {
+                        continue;
+                    }
+                    throughBossVisited.insert(next);
+                    throughBossQueue.push(next);
+                }
+            }
+        }
+        return gated;
     }
 
     /**
@@ -400,6 +476,9 @@ private:
         double bestScore = -1e18;
         bool hasWorthwhileTarget = false;
         bool hasNonNegativeTarget = false;
+        const double activeAreaCap = context.exitPath.empty() ? static_cast<double>(evaluator_.parameters().areaMax)
+                                                              : evaluator_.parameters().knownExitAreaCap;
+        const int debugAreaCap = std::max(1, static_cast<int>(std::ceil(activeAreaCap)));
         Position bestTarget = kInvalid;
         std::vector<Position> bestPath;
 
@@ -413,20 +492,27 @@ private:
             item.tile = localMap_.tile(target);
             item.score = score;
             item.deltaR = evaluator_.pathResourceDelta(path, localMap_);
-            item.informationProxy = evaluator_.informationProxy(target, localMap_, poseEstimator_);
+            const bool forceAreaMax = context.bossGatedAreaMaxTargets.count(target) > 0;
+            item.informationProxy =
+                evaluator_.informationProxy(target, localMap_, poseEstimator_, activeAreaCap, forceAreaMax);
             item.tailGain = evaluator_.futureGainMarginal(target, path, localMap_);
             item.qEff = debug.qEff;
             item.pathLength = path.empty() ? 0 : static_cast<int>(path.size()) - 1;
             item.projectedResource = state_.resource + item.deltaR;
             item.marginPenalty = item.projectedResource < 0 ? 0.0 : evaluator_.marginPenalty(item.projectedResource);
             hasNonNegativeTarget = hasNonNegativeTarget || (!path.empty() && item.projectedResource >= 0);
-            item.unknownComponents =
-                poseEstimator_.unknownComponentSizesTouchingView(target, localMap_, evaluator_.parameters().areaMax);
+            item.unknownComponents = forceAreaMax
+                                         ? std::vector<int>{evaluator_.parameters().areaMax}
+                                         : poseEstimator_.unknownComponentSizesTouchingView(target, localMap_, debugAreaCap);
             item.unknownComponentSum = 0;
             for (const int size : item.unknownComponents) item.unknownComponentSum += size;
             if (!context.exitPath.empty() && context.exitPath.size() > 1) {
-                const int exitLength = static_cast<int>(context.exitPath.size()) - 1;
-                hasWorthwhileTarget = hasWorthwhileTarget || score > debug.qEff * (item.pathLength - exitLength);
+                const auto targetToExit = routePath(target, localExit_);
+                if (!targetToExit.empty()) {
+                    const int detourCost = item.pathLength + static_cast<int>(targetToExit.size()) - 1 -
+                                           (static_cast<int>(context.exitPath.size()) - 1);
+                    hasWorthwhileTarget = hasWorthwhileTarget || score > debug.qEff * detourCost;
+                }
             }
             debug.candidates.push_back(item);
             if (score > bestScore) {
@@ -559,14 +645,20 @@ private:
      *   - 返回是否应直接去出口。
      * 关键逻辑：
      *   - 当前 R/L 为 0 时，除非所有探索候选都会让资源变负，否则禁止提前走出口。
+     *   - 当前 R/L 小于 1 且已拾取金币数小于 3 时，只要还有候选目标就继续探索。
      *   - 出口可达且探索收益不超过 tau 时停止探索。
-     *   - 即使 bestScore 超过 tau，也必须存在目标高于 q_eff * (len(target)-len(exit))，否则说明探索目标补偿不了绕路机会成本。
+     *   - 即使 bestScore 超过 tau，也必须存在目标 reward 高于 q_eff * 绕路代价，
+     *     其中绕路代价 = len(当前位置→target) + len(target→出口) - len(当前位置→出口)，
+     *     否则说明探索目标补偿不了绕路多走的步数。
      */
     bool shouldGoExit(const PathValueContext &context, double bestScore, bool hasWorthwhileTarget,
                       bool hasNonNegativeTarget) const
     {
         if (context.exitPath.empty() || context.exitPath.size() <= 1) return false;
         if (context.state.resource == 0 && hasNonNegativeTarget) return false;
+        const double currentRatio =
+            static_cast<double>(context.state.resource) / (context.state.steps + evaluator_.parameters().epsilon);
+        if (currentRatio < 1.0 && context.state.collectedGold < 3 && bestScore > -1e17) return false;
         if (bestScore <= evaluator_.parameters().tau) return true;
         return !hasWorthwhileTarget;
     }
@@ -579,10 +671,14 @@ private:
      *   - 返回通向出口或能带来更多新视野的局部路径。
      * 关键逻辑：
      *   - fallback 不加入 reward 项，只用于避免候选为空时停在原地。
+     *   - 当 ratio < 1 且金币数 < 3 时，优先尝试非出口探索路径；没有探索路径时才允许走出口。
      */
     std::vector<Position> fallbackPath(Position localCurrent) const
     {
-        if (localExit_ != kInvalid) {
+        const double currentRatio =
+            static_cast<double>(state_.resource) / (state_.steps + evaluator_.parameters().epsilon);
+        const bool delayExit = currentRatio < 1.0 && state_.collectedGold < 3;
+        if (localExit_ != kInvalid && !delayExit) {
             const auto exitPath = routePath(localCurrent, localExit_);
             if (!exitPath.empty()) return exitPath;
         }
@@ -590,14 +686,24 @@ private:
         std::vector<Position> bestPath;
         double bestInfo = -1.0;
         for (const auto &target : localMap_.observedPositions()) {
-            if (target == localCurrent || !localMap_.isWalkableForPlanning(target)) continue;
+            if (target == localCurrent || (delayExit && target == localExit_) ||
+                !localMap_.isWalkableForPlanning(target)) {
+                continue;
+            }
             auto path = routePath(localCurrent, target);
             if (path.empty()) continue;
-            const double info = evaluator_.informationProxy(target, localMap_, poseEstimator_);
+            const double activeAreaCap = localExit_ == kInvalid ? static_cast<double>(evaluator_.parameters().areaMax)
+                                                                : evaluator_.parameters().knownExitAreaCap;
+            const double info = evaluator_.informationProxy(target, localMap_, poseEstimator_, activeAreaCap);
             if (info > bestInfo || (info == bestInfo && (bestPath.empty() || path.size() < bestPath.size()))) {
                 bestInfo = info;
                 bestPath = std::move(path);
             }
+        }
+        if (delayExit && bestInfo <= 0.0) bestPath.clear();
+        if (bestPath.empty() && localExit_ != kInvalid) {
+            const auto exitPath = routePath(localCurrent, localExit_);
+            if (!exitPath.empty()) return exitPath;
         }
         return bestPath;
     }

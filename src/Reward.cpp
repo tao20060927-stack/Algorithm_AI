@@ -32,7 +32,25 @@ void LocalKnownMap::setObserved(Position localPos, const std::string &tile)
 {
     auto &cell = cells_[localPos];
     cell.observed = true;
+    cell.outside = false;
     cell.tile = tile;
+}
+
+/**
+ * 功能：记录 3x3 视野中落在迷宫外部的局部格。
+ * 输入：
+ *   - localPos：以起始位置为局部原点的越界视野坐标。
+ * 输出：
+ *   - 无返回值，更新局部记忆地图中的 outside 标记。
+ * 关键逻辑：
+ *   - outside 不是普通墙；它表示 AI 通过局部视野确认该坐标在迷宫外，用于判断出生点是否在边缘。
+ */
+void LocalKnownMap::setOutside(Position localPos)
+{
+    auto &cell = cells_[localPos];
+    cell.observed = true;
+    cell.outside = true;
+    cell.tile = "#";
 }
 
 /**
@@ -139,6 +157,21 @@ bool LocalKnownMap::isObserved(Position localPos) const
 }
 
 /**
+ * 功能：判断局部格子是否被观察为迷宫外部。
+ * 输入：
+ *   - localPos：局部坐标。
+ * 输出：
+ *   - 返回该坐标是否为 outside。
+ * 关键逻辑：
+ *   - outside 只用于出生掩码判断和路径外部约束，不作为可通行格参与搜索。
+ */
+bool LocalKnownMap::isOutside(Position localPos) const
+{
+    const auto it = cells_.find(localPos);
+    return it != cells_.end() && it->second.outside;
+}
+
+/**
  * 功能：判断局部格子是否已经访问。
  * 输入：
  *   - localPos：局部坐标。
@@ -211,6 +244,7 @@ bool LocalKnownMap::isWalkableForPlanning(Position localPos) const
 {
     const auto it = cells_.find(localPos);
     if (it == cells_.end() || !it->second.observed) return false;
+    if (it->second.outside) return false;
     return it->second.tile != "#";
 }
 
@@ -242,7 +276,25 @@ std::vector<Position> LocalKnownMap::observedPositions() const
 {
     std::vector<Position> positions;
     for (const auto &[pos, cell] : cells_) {
-        if (cell.observed) positions.push_back(pos);
+        if (cell.observed && !cell.outside) positions.push_back(pos);
+    }
+    return positions;
+}
+
+/**
+ * 功能：列出所有已确认的迷宫外部局部坐标。
+ * 输入：
+ *   - 无。
+ * 输出：
+ *   - 返回 outside 坐标列表。
+ * 关键逻辑：
+ *   - MapPoseEstimator 只在出生点 3x3 中使用这些坐标判断初始边缘假设。
+ */
+std::vector<Position> LocalKnownMap::outsidePositions() const
+{
+    std::vector<Position> positions;
+    for (const auto &[pos, cell] : cells_) {
+        if (cell.outside) positions.push_back(pos);
     }
     return positions;
 }
@@ -272,7 +324,7 @@ std::vector<Position> LocalKnownMap::knownCoins() const
  * 输出：
  *   - 创建包含多原点假设的估计器。
  * 关键逻辑：
- *   - 不使用真实起点坐标，枚举局部原点在 15x15 估计地图中的所有可能位置。
+ *   - 不使用真实起点坐标；先保持掩码未启用，等局部记忆足以确定 15x15 掩码时再裁剪未知区域。
  */
 MapPoseEstimator::MapPoseEstimator()
 {
@@ -286,21 +338,17 @@ MapPoseEstimator::MapPoseEstimator()
  * 输出：
  *   - 重置候选集合和默认最佳候选。
  * 关键逻辑：
- *   - 枚举 15x15 内全部原点位置和四种朝向，避免默认把起点当作边界入口。
+ *   - 默认把局部原点放在估计中心但不启用掩码；真正裁剪必须等 update() 判定 maskActive_。
  */
 void MapPoseEstimator::initialize()
 {
     hypotheses_.clear();
-    for (int row = 0; row < kEstimatedSize; ++row) {
-        for (int col = 0; col < kEstimatedSize; ++col) {
-            hypotheses_.push_back({{row, col}, Direction::Down, 0.0, true});
-            hypotheses_.push_back({{row, col}, Direction::Up, 0.0, true});
-            hypotheses_.push_back({{row, col}, Direction::Right, 0.0, true});
-            hypotheses_.push_back({{row, col}, Direction::Left, 0.0, true});
-        }
-    }
+    hypotheses_.push_back({{kEstimatedSize / 2, kEstimatedSize / 2}, Direction::Down, 0.0, true});
     best_ = hypotheses_[0];
     observedEstimated_.clear();
+    maskSeeded_ = false;
+    maskActive_ = false;
+    seedKind_ = MaskSeedKind::Internal;
 }
 
 /**
@@ -311,47 +359,145 @@ void MapPoseEstimator::initialize()
  * 输出：
  *   - 无返回值，更新最佳候选和估计已观察格集合。
  * 关键逻辑：
- *   - 候选只根据局部已知形状评分；任何已观察格越界的候选直接不可行。
+ *   - 第一次更新根据出生点 3x3 的迷宫外部信息确定出生边缘假设。
+ *   - 只有记忆地图跨度足以完全确定 15x15 掩码时，才启用掩码裁剪；否则保持无掩码 BFS。
  */
 void MapPoseEstimator::update(const LocalKnownMap &localMap, Position localCurrent)
 {
     const auto observed = localMap.observedPositions();
-    double bestScore = -1e18;
-    MapEmbeddingHypothesis fallback = hypotheses_.empty() ? MapEmbeddingHypothesis{} : hypotheses_[0];
+    if (!maskSeeded_) {
+        const auto outside = localMap.outsidePositions();
+        const auto hasOutside = [&](Position pos) {
+            return std::find(outside.begin(), outside.end(), pos) != outside.end();
+        };
+        const auto addHypothesis = [&](Position entry) {
+            hypotheses_.push_back({entry, Direction::Down, 0.0, true});
+        };
+        const bool topOutside = hasOutside({-1, -1}) && hasOutside({-1, 0}) && hasOutside({-1, 1});
+        const bool bottomOutside = hasOutside({1, -1}) && hasOutside({1, 0}) && hasOutside({1, 1});
+        const bool leftOutside = hasOutside({-1, -1}) && hasOutside({0, -1}) && hasOutside({1, -1});
+        const bool rightOutside = hasOutside({-1, 1}) && hasOutside({0, 1}) && hasOutside({1, 1});
 
-    for (auto &hypothesis : hypotheses_) {
-        hypothesis.feasible = true;
-        hypothesis.score = 0.0;
-        std::set<Position> estimated;
+        hypotheses_.clear();
+        if (topOutside && leftOutside) {
+            seedKind_ = MaskSeedKind::TopLeft;
+            addHypothesis({0, 0});
+        } else if (topOutside && rightOutside) {
+            seedKind_ = MaskSeedKind::TopRight;
+            addHypothesis({0, kEstimatedSize - 1});
+        } else if (bottomOutside && leftOutside) {
+            seedKind_ = MaskSeedKind::BottomLeft;
+            addHypothesis({kEstimatedSize - 1, 0});
+        } else if (bottomOutside && rightOutside) {
+            seedKind_ = MaskSeedKind::BottomRight;
+            addHypothesis({kEstimatedSize - 1, kEstimatedSize - 1});
+        } else if (topOutside) {
+            seedKind_ = MaskSeedKind::Top;
+            for (int col = 1; col < kEstimatedSize - 1; ++col) addHypothesis({0, col});
+        } else if (bottomOutside) {
+            seedKind_ = MaskSeedKind::Bottom;
+            for (int col = 1; col < kEstimatedSize - 1; ++col) addHypothesis({kEstimatedSize - 1, col});
+        } else if (leftOutside) {
+            seedKind_ = MaskSeedKind::Left;
+            for (int row = 1; row < kEstimatedSize - 1; ++row) addHypothesis({row, 0});
+        } else if (rightOutside) {
+            seedKind_ = MaskSeedKind::Right;
+            for (int row = 1; row < kEstimatedSize - 1; ++row) addHypothesis({row, kEstimatedSize - 1});
+        } else {
+            addHypothesis({kEstimatedSize / 2, kEstimatedSize / 2});
+        }
+        best_ = hypotheses_.front();
+        maskSeeded_ = true;
+    }
+
+    int minRow = 0;
+    int maxRow = 0;
+    int minCol = 0;
+    int maxCol = 0;
+    if (!observed.empty()) {
+        minRow = maxRow = observed.front().first;
+        minCol = maxCol = observed.front().second;
         for (const auto &pos : observed) {
-            const Position mapped = mapWithHypothesis(pos, hypothesis);
-            if (!insideEstimated(mapped)) {
-                hypothesis.feasible = false;
-                hypothesis.score = -1e18;
-                break;
-            }
-            estimated.insert(mapped);
-        }
-        if (!hypothesis.feasible) continue;
-
-        const Position currentEstimated = mapWithHypothesis(localCurrent, hypothesis);
-        int edgeTouches = 0;
-        for (const auto &pos : estimated) {
-            if (pos.first == 0 || pos.first == kEstimatedSize - 1) ++edgeTouches;
-            if (pos.second == 0 || pos.second == kEstimatedSize - 1) ++edgeTouches;
-        }
-        const double centerDistance = std::abs(currentEstimated.first - 7) + std::abs(currentEstimated.second - 7);
-        hypothesis.score = -0.15 * edgeTouches - 0.05 * centerDistance;
-        if (hypothesis.score > bestScore) {
-            bestScore = hypothesis.score;
-            best_ = hypothesis;
-            observedEstimated_ = std::move(estimated);
+            minRow = std::min(minRow, pos.first);
+            maxRow = std::max(maxRow, pos.first);
+            minCol = std::min(minCol, pos.second);
+            maxCol = std::max(maxCol, pos.second);
         }
     }
 
-    if (bestScore <= -1e17) {
-        best_ = fallback;
-        observedEstimated_.clear();
+    const bool hasFullHorizontal = maxCol - minCol + 1 >= kEstimatedSize;
+    const bool hasFullVertical = maxRow - minRow + 1 >= kEstimatedSize;
+    const bool canPruneHorizontal = maxCol - minCol + 1 >= kEstimatedSize - 1;
+    const bool canPruneVertical = maxRow - minRow + 1 >= kEstimatedSize - 1;
+    const bool canPruneHypotheses =
+        ((seedKind_ == MaskSeedKind::Top || seedKind_ == MaskSeedKind::Bottom) && canPruneHorizontal) ||
+        ((seedKind_ == MaskSeedKind::Left || seedKind_ == MaskSeedKind::Right) && canPruneVertical);
+    if (canPruneHypotheses) {
+        std::vector<MapEmbeddingHypothesis> feasibleHypotheses;
+        for (auto hypothesis : hypotheses_) {
+            bool feasible = true;
+            for (const auto &pos : observed) {
+                const Position mapped = mapWithHypothesis(pos, hypothesis);
+                if (!insideEstimated(mapped)) {
+                    feasible = false;
+                    break;
+                }
+                const bool boundary = mapped.first == 0 || mapped.second == 0 || mapped.first == kEstimatedSize - 1 ||
+                                      mapped.second == kEstimatedSize - 1;
+                const std::string tile = localMap.tile(pos);
+                const bool allowedEntry = pos == Position{0, 0} && tile == "S";
+                if (boundary && tile != "#" && !allowedEntry) {
+                    feasible = false;
+                    break;
+                }
+            }
+            if (!feasible) continue;
+            for (const auto &pos : localMap.outsidePositions()) {
+                if (insideEstimated(mapWithHypothesis(pos, hypothesis))) {
+                    feasible = false;
+                    break;
+                }
+            }
+            if (feasible) feasibleHypotheses.push_back(hypothesis);
+        }
+        if (!feasibleHypotheses.empty()) {
+            hypotheses_ = feasibleHypotheses;
+            best_ = hypotheses_.front();
+        }
+    }
+
+    switch (seedKind_) {
+    case MaskSeedKind::Top:
+    case MaskSeedKind::Bottom:
+        maskActive_ = hypotheses_.size() == 1 || hasFullHorizontal;
+        if (hasFullHorizontal) best_.entry.second = -minCol;
+        break;
+    case MaskSeedKind::Left:
+    case MaskSeedKind::Right:
+        maskActive_ = hypotheses_.size() == 1 || hasFullVertical;
+        if (hasFullVertical) best_.entry.first = -minRow;
+        break;
+    case MaskSeedKind::TopLeft:
+    case MaskSeedKind::TopRight:
+    case MaskSeedKind::BottomLeft:
+    case MaskSeedKind::BottomRight:
+        maskActive_ = true;
+        break;
+    case MaskSeedKind::Internal:
+        maskActive_ = (maxCol - minCol + 1 >= kEstimatedSize) && (maxRow - minRow + 1 >= kEstimatedSize);
+        if (maskActive_) best_.entry = {-minRow, -minCol};
+        break;
+    }
+
+    observedEstimated_.clear();
+    for (const auto &pos : observed) {
+        const Position mapped = mapWithHypothesis(pos, best_);
+        if (maskActive_ && !insideEstimated(mapped)) {
+            maskActive_ = false;
+            observedEstimated_.clear();
+            break;
+        }
+        if (insideEstimated(mapped)) observedEstimated_.insert(mapped);
     }
 }
 
@@ -367,6 +513,20 @@ void MapPoseEstimator::update(const LocalKnownMap &localMap, Position localCurre
 MapEmbeddingHypothesis MapPoseEstimator::best() const
 {
     return best_;
+}
+
+/**
+ * 功能：判断当前是否已经启用 15x15 掩码。
+ * 输入：
+ *   - 无。
+ * 输出：
+ *   - 返回掩码是否参与未知区域裁剪。
+ * 关键逻辑：
+ *   - 只有出生边缘和记忆地图跨度满足可确定条件时，该值才为 true。
+ */
+bool MapPoseEstimator::isMaskActive() const
+{
+    return maskActive_;
 }
 
 /**
@@ -394,6 +554,7 @@ Position MapPoseEstimator::localToEstimatedGlobal(Position localPos) const
  */
 bool MapPoseEstimator::isInsideEstimatedMaze(Position localPos) const
 {
+    if (!maskActive_) return true;
     return insideEstimated(localToEstimatedGlobal(localPos));
 }
 
@@ -436,15 +597,35 @@ int MapPoseEstimator::estimatedObservedCount() const
  * 关键逻辑：
  *   - 以目标格为起点，已观察格视为不可逾越障碍，未知格可以继续扩展。
  *   - 如果能搜索到 areaMax 个未知格，就直接按 areaMax 计；如果封闭且不足 areaMax，则按实际搜索到的数量计。
- *   - 该函数不使用绝对位置估计和真实迷宫尺寸，避免起点不在边缘或迷宫大小变化时产生 15x15 映射错误。
+ *   - 掩码未启用时不裁剪；掩码启用后，15x15 外围一圈按迷宫边界墙处理，不计入未知区域。
  */
 std::vector<int> MapPoseEstimator::unknownComponentSizesTouchingView(Position localTarget, const LocalKnownMap &localMap,
                                                                      int areaMax) const
 {
     if (areaMax <= 0) return {0};
+    if (maskActive_ && !isInsideEstimatedMaze(localTarget)) return {0};
 
     const auto observedPositions = localMap.observedPositions();
     std::set<Position> observed(observedPositions.begin(), observedPositions.end());
+    const auto blockedByMaskBoundary = [&](Position pos) {
+        const Position mapped = localToEstimatedGlobal(pos);
+        if (maskActive_) {
+            if (!insideEstimated(mapped)) return true;
+            return mapped.first == 0 || mapped.second == 0 || mapped.first == kEstimatedSize - 1 ||
+                   mapped.second == kEstimatedSize - 1;
+        }
+        switch (seedKind_) {
+        case MaskSeedKind::Top:
+        case MaskSeedKind::Bottom:
+            return mapped.first <= 0 || mapped.first >= kEstimatedSize - 1;
+        case MaskSeedKind::Left:
+        case MaskSeedKind::Right:
+            return mapped.second <= 0 || mapped.second >= kEstimatedSize - 1;
+        default:
+            return false;
+        }
+    };
+    if (blockedByMaskBoundary(localTarget)) return {0};
     std::set<Position> visited;
     std::queue<Position> queue;
     queue.push(localTarget);
@@ -459,7 +640,7 @@ std::vector<int> MapPoseEstimator::unknownComponentSizesTouchingView(Position lo
         }
         for (const auto [dr, dc] : kDirs) {
             const Position next{row + dr, col + dc};
-            if (visited.count(next) || observed.count(next)) {
+            if (visited.count(next) || observed.count(next) || blockedByMaskBoundary(next)) {
                 continue;
             }
             visited.insert(next);
@@ -542,18 +723,47 @@ int PathValueEvaluator::pathResourceDelta(const std::vector<Position> &path, con
 }
 
 /**
+ * 功能：检查路径执行过程中资源是否始终不为负。
+ * 输入：
+ *   - path：局部坐标路径，path[0] 是当前位置。
+ *   - currentResource：执行路径前 AI 当前资源。
+ *   - localMap：局部记忆地图。
+ * 输出：
+ *   - 返回路径每一个前缀结算后的资源是否都 >= 0。
+ * 关键逻辑：
+ *   - 逐步结算金币和陷阱，而不是只看整条路径的总 DeltaR；这可以禁止“先踩陷阱到负数，再吃金币补回来”的路径。
+ */
+bool PathValueEvaluator::pathKeepsResourceNonNegative(const std::vector<Position> &path, int currentResource,
+                                                      const LocalKnownMap &localMap) const
+{
+    int resource = currentResource;
+    for (size_t i = 1; i < path.size(); ++i) {
+        const Position pos = path[i];
+        const std::string tile = localMap.tile(pos);
+        if (tile == "G" && !localMap.isCollected(pos)) resource += kGoldValue;
+        if (tile == "T" && !localMap.isTriggered(pos)) resource += kTrapValue;
+        if (resource < 0) return false;
+    }
+    return true;
+}
+
+/**
  * 功能：计算探索信息价值 I_proxy。
  * 输入：
  *   - target：候选目标局部坐标。
  *   - localMap：局部记忆地图。
- *   - poseEstimator：保留的姿态估计参数；当前 I_proxy 的 |C| 不再依赖绝对位置估计。
+ *   - poseEstimator：姿态估计器；只有掩码已完全确定时才用它裁剪 |C|。
+ *   - areaCap：|C| 面积奖励上限；出口未知时通常为 Amax，出口已知后可降到 1.5。
+ *   - forceAreaMax：是否把该目标的 |C| 强制按 Amax 处理。
  * 输出：
  *   - 返回按当前价值密度估计后的未知连通块贡献。
  * 关键逻辑：
- *   - |C| 由局部记忆地图 BFS 得到，达到 Amax 即停止；封闭小区域按实际未知格数量计。
+ *   - |C| 由局部记忆地图 BFS 得到；掩码未启用时不裁剪，掩码启用后不允许 BFS 展开到掩码外部。
+ *   - 对必须踏过 Boss 才能继续到达的通关推进区域，直接按 Amax 计入，避免边缘出口被面积裁剪误判为无价值。
  */
 double PathValueEvaluator::informationProxy(Position target, const LocalKnownMap &localMap,
-                                            const MapPoseEstimator &poseEstimator) const
+                                            const MapPoseEstimator &poseEstimator, double areaCap,
+                                            bool forceAreaMax) const
 {
     int observedCount = 0;
     int goldCount = 0;
@@ -570,9 +780,15 @@ double PathValueEvaluator::informationProxy(Position target, const LocalKnownMap
     const double areaValue = 50.0 * rhoG - 30.0 * rhoT;
     const double areaValueDensity = std::clamp(std::max(areaValue, 0.0) / 50.0, parameters_.rhoAreaValueMin, 1.0);
 
+    const double activeAreaCap = areaCap > 0.0 ? areaCap : static_cast<double>(parameters_.areaMax);
+    const int searchAreaCap = std::max(1, static_cast<int>(std::ceil(activeAreaCap)));
     double componentValue = 0.0;
-    for (const int size : poseEstimator.unknownComponentSizesTouchingView(target, localMap, parameters_.areaMax)) {
-        componentValue += static_cast<double>(std::min(size, parameters_.areaMax)) * areaValueDensity;
+    if (forceAreaMax) {
+        componentValue = static_cast<double>(parameters_.areaMax) * areaValueDensity;
+    } else {
+        for (const int size : poseEstimator.unknownComponentSizesTouchingView(target, localMap, searchAreaCap)) {
+            componentValue += std::min(static_cast<double>(size), activeAreaCap) * areaValueDensity;
+        }
     }
     return parameters_.kappaU * componentValue;
 }
@@ -691,8 +907,10 @@ double PathValueEvaluator::updateAlphaSmooth(double previousAlpha, const LocalKn
  * 输出：
  *   - 返回加性 reward 分数，非法路径返回负无穷。
  * 关键逻辑：
+ *   - 若路径任意前缀会让资源变负，说明 AI 实际执行时会进入非法状态，直接判为负无穷。
  *   - 若 DeltaR、I_proxy、tailUB 都为 0，说明目标没有任何收益来源，直接判为负无穷。
  *   - 其余情况使用 DeltaR + omegaI*alpha*I + beta*tailUB - qEffLengthWeight*qEff*len - margin，不加入最近访问惩罚。
+ *   - 如果目标位于 Boss-gated 区域，I_proxy 的 |C| 按 Amax 计算，用于表达“踏过 Boss 后可能继续通向出口”的推进价值。
  */
 double PathValueEvaluator::evaluate(const std::vector<Position> &path, Position target,
                                     const PathValueContext &context, const LocalKnownMap &localMap,
@@ -706,10 +924,14 @@ double PathValueEvaluator::evaluate(const std::vector<Position> &path, Position 
     const int delta = pathResourceDelta(path, localMap);
     const int projectedResource = context.state.resource + delta;
     if (projectedResource < 0) return -1e18;
+    if (!pathKeepsResourceNonNegative(path, context.state.resource, localMap)) return -1e18;
 
-    const double info = informationProxy(target, localMap, poseEstimator);
+    const double info = informationProxy(target, localMap, poseEstimator,
+                                         context.exitPath.empty() ? static_cast<double>(parameters_.areaMax)
+                                                                  : parameters_.knownExitAreaCap,
+                                         context.bossGatedAreaMaxTargets.count(target) > 0);
     const double tail = futureGainMarginal(target, path, localMap);
-    if (delta == 0 && info == 0.0 && tail == 0.0) return -1e18;
+    if (delta < 0 && info == 0.0) return -1e18;
     const double qEff = computeQEff(context, localMap);
     const double margin = marginPenalty(projectedResource);
     return delta + parameters_.omegaI * context.state.alphaSmooth * info + parameters_.beta * tail -

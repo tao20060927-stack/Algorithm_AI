@@ -14,7 +14,7 @@ namespace ai_player::reward_config {
  *   - marginPenalty(R + DeltaR_real(path_t))
  *
  * 其中：
- * I_proxy(t) = kappaU * sum_C min(|C|, areaMax) * rho_area_value
+ * I_proxy(t) = kappaU * sum_C min(|C|, activeAreaCap) * rho_area_value
  *
  * rho_area_value = clip(max(v_area, 0) / 50, rhoAreaValueMin, 1)
  *
@@ -56,6 +56,9 @@ inline constexpr double kKappaU = 60;
 
 // areaMax 位于 min(|C|, areaMax) * rho_area_value，限制单个未知连通块按多少个未知格计算潜在价值。
 inline constexpr int kAreaMax = 12;
+
+// knownExitAreaCap 位于出口已知后的 min(|C|, knownExitAreaCap)，削弱开阔未知区域的面积奖励。
+inline constexpr double kKnownExitAreaCap = 1.5;
 
 // rhoAreaValueMin 位于 rho_area_value 的 clip 下界，避免价值密度被压到完全没有探索收益。
 inline constexpr double kRhoAreaValueMin = 0.001;

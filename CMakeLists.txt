@@ -58,6 +58,24 @@ target_link_libraries(pocket_aware_greedy_tests PRIVATE ai_player_core)
 add_executable(pocket_integration_tests src/PocketIntegrationTest.cpp)
 target_link_libraries(pocket_integration_tests PRIVATE ai_player_core)
 
+add_executable(mask_pose_tests src/MaskPoseEstimatorTest.cpp)
+target_link_libraries(mask_pose_tests PRIVATE ai_player_core)
+
+add_executable(batch_runner tools/batch_runner.cpp)
+target_link_libraries(batch_runner PRIVATE ai_player_core)
+
+add_executable(debug_runner tools/debug_runner.cpp)
+target_link_libraries(debug_runner PRIVATE ai_player_core)
+
+add_executable(deep_debug tools/deep_debug.cpp)
+target_link_libraries(deep_debug PRIVATE ai_player_core)
+
+add_executable(full_runner tools/full_runner.cpp)
+target_link_libraries(full_runner PRIVATE ai_player_core)
+
+add_executable(one_shot tools/one_shot.cpp)
+target_link_libraries(one_shot PRIVATE ai_player_core)
+
 if (MSVC)
     set(WEBVIEW2_PACKAGE_ROOT "$ENV{WEBVIEW2_SDK}" CACHE PATH "Microsoft.Web.WebView2 package root")
     if (NOT WEBVIEW2_PACKAGE_ROOT)
@@ -98,6 +116,7 @@ if (MSVC)
     target_compile_options(boss_strategy_tests PRIVATE /utf-8)
     target_compile_options(pocket_aware_greedy_tests PRIVATE /utf-8)
     target_compile_options(pocket_integration_tests PRIVATE /utf-8)
+    target_compile_options(mask_pose_tests PRIVATE /utf-8)
 else ()
     message(WARNING "MSVC was not detected. Building ai_player_core and ai_player_smoke only; the WebView2 desktop executable requires MSVC.")
 endif ()

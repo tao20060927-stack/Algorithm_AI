@@ -1,0 +1,445 @@
+﻿case_id,maze_file,step,rank,selected,real_r,real_c,local_r,local_c,tile,score,deltaR,Iproxy,tailGain,qEff,pathLen,margin,projectedR,unknownCompSum,dominant_term
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,0,1,True,1,1,1,0, ,5.736266666666669,0,18.000000000000004,0.0,1.0,1,8.0,0,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,1,1,True,2,1,2,0, ,4.789948070175434,0,15.157894736842103,0.0,1.0,1,8.0,0,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,2,1,True,3,1,3,0, ,3.884182303030302,0,13.090909090909092,0.0,1.0,1,8.0,0,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,2,2,False,3,2,3,1, ,3.064182303030302,0,13.090909090909092,0.0,1.0,2,8.0,0,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,3,1,True,3,2,3,1, ,3.0347487857777757,0,11.52,0.0,1.0,1,8.0,0,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,4,1,True,3,3,3,2, ,2.2473577041269834,0,10.285714285714285,0.0,1.0,1,8.0,0,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,4,2,False,2,3,2,2, ,1.4273577041269832,0,10.285714285714285,0.0,1.0,2,8.0,0,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,4,3,False,4,3,4,2, ,1.4273577041269832,0,10.285714285714285,0.0,1.0,2,8.0,0,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,5,1,True,2,3,2,2, ,1.5224238659732787,0,9.29032258064516,0.0,1.0,1,8.0,0,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,5,2,False,3,4,3,3, ,1.5224238659732787,0,9.29032258064516,0.0,1.0,1,8.0,0,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,5,3,False,4,3,4,2, ,1.5224238659732787,0,9.29032258064516,0.0,1.0,1,8.0,0,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,6,1,True,1,3,1,2, ,1.152691875034467,0,8.727272727272727,0.0,1.0,1,8.0,0,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,6,2,False,1,4,1,3, ,0.33269187503446673,0,8.727272727272727,0.0,1.0,2,8.0,0,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,6,3,False,3,4,3,3, ,0.33269187503446673,0,8.727272727272727,0.0,1.0,2,8.0,0,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,6,4,False,4,3,4,2, ,0.33269187503446673,0,8.727272727272727,0.0,1.0,2,8.0,0,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,7,1,True,1,4,1,3, ,0.7730914467441483,0,8.228571428571431,0.0,1.0,1,8.0,0,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,7,2,False,3,4,3,3, ,-0.8669085532558514,0,8.228571428571431,0.0,1.0,3,8.0,0,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,7,3,False,4,3,4,2, ,-0.8669085532558514,0,8.228571428571431,0.0,1.0,3,8.0,0,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,8,1,True,1,5,1,4, ,0.14976422391673694,0,7.578947368421051,0.0,1.0,1,8.0,0,12,margin
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,8,2,False,3,4,3,3, ,-2.310235776083262,0,7.578947368421051,0.0,1.0,4,8.0,0,12,margin
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,8,3,False,4,3,4,2, ,-2.310235776083262,0,7.578947368421051,0.0,1.0,4,8.0,0,12,margin
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,9,1,True,1,6,1,5, ,-0.41394180742826947,0,7.024390243902438,0.0,1.0,1,8.0,0,12,margin
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,9,2,False,3,4,3,3, ,-3.693941807428269,0,7.024390243902438,0.0,1.0,5,8.0,0,12,margin
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,9,3,False,4,3,4,2, ,-3.693941807428269,0,7.024390243902438,0.0,1.0,5,8.0,0,12,margin
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,10,1,True,1,7,1,6,G,76.8818522249668,50,22.90909090909091,0.0,1.0,1,0.0,50,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,10,2,False,3,4,3,3, ,22.469352224966798,0,22.90909090909091,6.25,1.0,6,8.0,0,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,10,3,False,4,3,4,2, ,22.469352224966798,0,22.90909090909091,6.25,1.0,6,8.0,0,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,11,1,True,3,4,3,3, ,2.2024416735978924,0,21.446808510638295,0.0,4.166666319444474,7,0.0,50,12,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,11,2,False,4,3,4,2, ,2.2024416735978924,0,21.446808510638295,0.0,4.166666319444474,7,0.0,50,12,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,12,1,True,3,4,3,3, ,7.344396844354158,0,21.446808510638295,0.0,3.846153550295881,6,0.0,50,12,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,12,2,False,4,3,4,2, ,7.344396844354158,0,21.446808510638295,0.0,3.846153550295881,6,0.0,50,12,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,13,1,True,3,4,3,3, ,11.743308986551614,0,21.446808510638295,0.0,3.571428316326549,5,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,13,2,False,4,3,4,2, ,11.743308986551614,0,21.446808510638295,0.0,3.571428316326549,5,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,14,1,True,3,4,3,3, ,15.547786696390427,0,21.446808510638295,0.0,3.333333111111126,4,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,14,2,False,4,3,4,2, ,15.547786696390427,0,21.446808510638295,0.0,3.333333111111126,4,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,15,1,True,3,4,3,3, ,18.869583155179214,0,21.446808510638295,0.0,3.124999804687512,3,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,15,2,False,4,3,4,2, ,18.869583155179214,0,21.446808510638295,0.0,3.124999804687512,3,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,16,1,True,3,4,3,3, ,21.794324245783248,0,21.446808510638295,0.0,2.9411762975778646,2,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,16,2,False,4,3,4,2, ,21.794324245783248,0,21.446808510638295,0.0,2.9411762975778646,2,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,17,1,True,3,4,3,3, ,24.388692281856734,0,21.446808510638295,0.0,2.7777776234567986,1,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,17,2,False,4,3,4,2, ,24.388692281856734,0,21.446808510638295,0.0,2.7777776234567986,1,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,18,1,True,3,5,3,4, ,23.438092389014578,0,20.571428571428577,0.0,2.631578808864273,1,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,18,2,False,4,3,4,2, ,21.280197765745875,0,20.571428571428577,0.0,2.631578808864273,2,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,19,1,True,3,6,3,5, ,22.536961040983062,0,19.764705882352942,0.0,2.499999875000006,1,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,19,2,False,4,3,4,2, ,18.436961245983053,0,19.764705882352942,0.0,2.499999875000006,3,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,20,1,True,3,7,3,6, ,21.683996343318896,0,19.018867924528305,0.0,2.3809522675737016,1,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,20,2,False,4,3,4,2, ,15.826853765087591,0,19.018867924528305,0.0,2.3809522675737016,4,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,21,1,True,3,8,3,7, ,20.877302931140164,0,18.327272727272728,0.0,2.272727169421492,1,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,21,2,False,4,3,4,2, ,13.42275781543767,0,18.327272727272728,0.0,2.272727169421492,5,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,22,1,True,4,3,4,2, ,1.504248714611153,0,9.931034482758617,0.0,2.1739129489603064,6,0.0,50,12,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,22,2,False,3,9,3,8,T,-20.471597083540477,-30,9.931034482758617,0.0,2.1739129489603064,1,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,22,3,False,2,9,2,8, ,-22.25420570168793,-30,9.931034482758617,0.0,2.1739129489603064,2,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,23,1,True,4,3,4,2, ,3.5600133161306715,0,9.931034482758617,0.0,2.0833332465277814,5,0.0,50,12,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,23,2,False,3,9,3,8,T,-22.20387578629988,-30,9.931034482758617,0.0,2.0833332465277814,2,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,23,3,False,2,9,2,8, ,-23.91220904845266,-30,9.931034482758617,0.0,2.0833332465277814,3,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,24,1,True,4,3,4,2, ,5.4631032520135365,0,9.931034482758617,0.0,1.9999999200000032,4,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,24,2,False,3,9,3,8,T,-23.785785702475348,-30,9.931034482758617,0.0,1.9999999200000032,3,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,24,3,False,2,9,2,8, ,-25.42578563687535,-30,9.931034482758617,0.0,1.9999999200000032,4,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,25,1,True,4,3,4,2, ,7.229472630972149,0,9.931034482758617,0.0,1.9230768491124288,3,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,25,2,False,3,9,3,8,T,-25.236339274188932,-30,9.931034482758617,0.0,1.9230768491124288,4,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,25,3,False,2,9,2,8, ,-26.81326229046112,-30,9.931034482758617,0.0,1.9230768491124288,5,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,26,1,True,4,3,4,2, ,8.872915707374675,0,9.931034482758617,0.0,1.8518517832647488,2,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,26,2,False,3,9,3,8,T,-26.571528568345496,-30,9.931034482758617,0.0,1.8518517832647488,5,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,26,3,False,2,9,2,8, ,-28.09004703062259,-30,9.931034482758617,0.0,1.8518517832647488,6,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,27,1,True,4,3,4,2, ,10.405435731651178,0,9.931034482758617,0.0,1.7857142219387778,1,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,27,2,False,3,9,3,8,T,-27.8048814671867,-30,9.931034482758617,0.0,1.7857142219387778,6,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,27,3,False,2,9,2,8, ,-29.2691671291765,-30,9.931034482758617,0.0,1.7857142219387778,7,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,28,1,True,5,3,5,2, ,9.831273609419524,0,9.442622950819672,0.0,1.7241378715814526,1,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,28,2,False,5,4,5,3, ,8.417480554722733,0,9.442622950819672,0.0,1.7241378715814526,2,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,28,3,False,3,9,3,8,T,-29.54037360765011,-30,9.442622950819672,0.0,1.7241378715814526,7,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,28,4,False,2,9,2,8, ,-30.954166662346903,-30,9.442622950819672,0.0,1.7241378715814526,8,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,29,1,True,5,4,5,3, ,9.309673180865817,0,9.000000000000002,0.0,1.6666666111111128,1,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,29,2,False,6,3,6,2, ,9.309673180865817,0,9.000000000000002,0.0,1.6666666111111128,1,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,29,3,False,3,9,3,8,T,-31.145882055800858,-30,9.000000000000002,0.0,1.6666666111111128,8,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,29,4,False,2,9,2,8, ,-32.51254867691197,-30,9.000000000000002,0.0,1.6666666111111128,9,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,30,1,True,5,5,5,4, ,8.990914516611971,0,8.727272727272727,0.0,1.612903173777317,1,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,30,2,False,6,3,6,2, ,7.668333914114571,0,8.727272727272727,0.0,1.612903173777317,2,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,30,3,False,3,9,3,8,T,-32.47861919225612,-30,8.727272727272727,0.0,1.612903173777317,9,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,30,4,False,2,9,2,8, ,-33.801199794753515,-30,8.727272727272727,0.0,1.612903173777317,10,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,31,1,True,5,6,5,5, ,8.691341021412876,0,8.470588235294116,0.0,1.5624999511718767,1,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,31,2,False,6,3,6,2, ,6.128841101490998,0,8.470588235294116,0.0,1.5624999511718767,3,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,31,3,False,3,9,3,8,T,-33.72879750712446,-30,8.470588235294116,0.0,1.5624999511718767,10,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,31,4,False,2,9,2,8, ,-35.0100474670854,-30,8.470588235294116,0.0,1.5624999511718767,11,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,32,1,True,5,7,5,6, ,8.409022562525836,0,8.228571428571431,0.0,1.5151514692378343,1,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,32,2,False,6,7,6,6, ,7.166598357750811,0,8.228571428571431,0.0,1.5151514692378343,2,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,32,3,False,6,3,6,2, ,4.681749948200763,0,8.228571428571431,0.0,1.5151514692378343,4,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,32,4,False,3,9,3,8,T,-34.90410837411329,-30,8.228571428571431,0.0,1.5151514692378343,11,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,32,5,False,2,9,2,8, ,-36.14653257888831,-30,8.228571428571431,0.0,1.5151514692378343,12,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,33,1,True,5,8,5,7, ,8.142314291011411,0,8.0,0.0,1.4705881920415238,1,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,33,2,False,6,7,6,6, ,8.142314291011411,0,8.0,0.0,1.4705881920415238,1,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,33,3,False,6,3,6,2, ,3.3187850211152137,0,8.0,0.0,1.4705881920415238,5,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,33,4,False,3,9,3,8,T,-36.011280090092015,-30,8.0,0.0,1.4705881920415238,12,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,33,5,False,2,9,2,8, ,-37.217162407566065,-30,8.0,0.0,1.4705881920415238,13,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,34,1,True,5,9,5,8, ,7.8898028069132105,0,7.783783783783782,0.0,1.4285713877551034,1,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,34,2,False,6,7,6,6, ,6.718374268954026,0,7.783783783783782,0.0,1.4285713877551034,2,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,34,3,False,6,3,6,2, ,2.0326601171172864,0,7.783783783783782,0.0,1.4285713877551034,6,0.0,50,12,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,34,4,False,3,9,3,8,T,-37.05622853748589,-30,7.783783783783782,0.0,1.4285713877551034,13,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,34,5,False,2,9,2,8, ,-38.22765707544507,-30,7.783783783783782,0.0,1.4285713877551034,14,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,35,1,True,6,7,6,6, ,5.2548907386354955,0,7.4805194805194795,0.0,1.3888888503086432,3,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,35,2,False,6,3,6,2, ,0.6993353096231463,0,7.4805194805194795,0.0,1.3888888503086432,7,0.0,50,12,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,35,3,False,3,9,3,8,T,-38.16177558003735,-30,7.4805194805194795,0.0,1.3888888503086432,14,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,35,4,False,2,9,2,8, ,-39.300664437290436,-30,7.4805194805194795,0.0,1.3888888503086432,15,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,36,1,True,6,7,6,6, ,6.4260299164642145,0,7.4805194805194795,0.0,1.351351314828343,2,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,36,2,False,6,3,6,2, ,1.9935976038272507,0,7.4805194805194795,0.0,1.351351314828343,6,0.0,50,12,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,36,3,False,3,9,3,8,T,-36.65204783217632,-30,7.4805194805194795,0.0,1.351351314828343,13,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,36,4,False,2,9,2,8, ,-37.76015591033556,-30,7.4805194805194795,0.0,1.351351314828343,14,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,37,1,True,6,7,6,6, ,7.539849742665348,0,7.4805194805194795,0.0,1.3157894390581728,1,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,37,2,False,6,3,6,2, ,3.2240603825545415,0,7.4805194805194795,0.0,1.3157894390581728,5,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,37,3,False,3,9,3,8,T,-35.21745988652826,-30,7.4805194805194795,0.0,1.3157894390581728,12,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,37,4,False,2,9,2,8, ,-36.29640722655596,-30,7.4805194805194795,0.0,1.3157894390581728,13,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,38,1,True,7,7,7,6, ,7.216125062680877,0,7.199999999999999,0.0,1.2820512491781733,1,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,38,2,False,7,8,7,7, ,6.164843038354776,0,7.199999999999999,0.0,1.2820512491781733,2,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,38,3,False,6,3,6,2, ,1.9597149410503674,0,7.199999999999999,0.0,1.2820512491781733,6,0.0,50,12,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,38,4,False,3,9,3,8,T,-36.288148118121235,-30,7.199999999999999,0.0,1.2820512491781733,13,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,38,5,False,2,9,2,8, ,-37.339430142447334,-30,7.199999999999999,0.0,1.2820512491781733,14,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,39,1,True,7,8,7,7, ,6.91186875024138,0,6.93975903614458,0.0,1.249999968750001,1,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,39,2,False,6,3,6,2, ,0.7618689039913757,0,6.93975903614458,0.0,1.249999968750001,7,0.0,50,12,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,39,3,False,3,9,3,8,T,-37.30201980552251,-30,6.93975903614458,0.0,1.249999968750001,14,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,39,4,False,2,9,2,8, ,-38.32701977989751,-30,6.93975903614458,0.0,1.249999968750001,15,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,40,1,True,7,9,7,8, ,6.718735175083299,0,6.776470588235296,0.0,1.219512165377752,1,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,40,2,False,6,3,6,2, ,-0.2812646541849979,0,6.776470588235296,0.0,1.219512165377752,8,0.0,50,12,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,40,3,False,3,9,3,8,T,-38.17015337234218,-30,6.776470588235296,0.0,1.219512165377752,15,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,40,4,False,2,9,2,8, ,-39.17015334795194,-30,6.776470588235296,0.0,1.219512165377752,16,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,41,1,True,6,3,6,2, ,-1.2754850109137692,0,6.620689655172412,0.0,1.19047616213152,9,0.0,50,12,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,41,2,False,3,9,3,8,T,-38.997707070437585,-30,6.620689655172412,0.0,1.19047616213152,16,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,41,3,False,2,9,2,8, ,-39.97389752338543,-30,6.620689655172412,0.0,1.19047616213152,17,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,42,1,True,6,3,6,2, ,-0.14252885189731312,0,6.620689655172412,0.0,1.162790670632775,8,0.0,50,12,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,42,2,False,3,9,3,8,T,-37.70583619021833,-30,6.620689655172412,0.0,1.162790670632775,15,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,42,3,False,2,9,2,8, ,-38.659324540137206,-30,6.620689655172412,0.0,1.162790670632775,16,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,43,1,True,6,3,6,2, ,0.9427699284396898,0,6.620689655172412,0.0,1.1363636105371908,7,0.0,50,12,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,43,2,False,3,9,3,8,T,-36.46884608493267,-30,6.620689655172412,0.0,1.1363636105371908,14,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,43,3,False,2,9,2,8, ,-37.40066424557317,-30,6.620689655172412,0.0,1.1363636105371908,15,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,44,1,True,6,3,6,2, ,1.982925792113555,0,6.620689655172412,0.0,1.1111110864197538,6,0.0,50,12,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,44,2,False,3,9,3,8,T,-35.28374073282472,-30,6.620689655172412,0.0,1.1111110864197538,13,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,44,3,False,2,9,2,8, ,-36.194851823688914,-30,6.620689655172412,0.0,1.1111110864197538,14,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,45,1,True,6,3,6,2, ,2.9803469225496784,0,6.620689655172412,0.0,1.0869564981096413,5,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,45,2,False,3,9,3,8,T,-34.14767226548855,-30,6.620689655172412,0.0,1.0869564981096413,12,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,45,3,False,2,9,2,8, ,-35.03897659393846,-30,6.620689655172412,0.0,1.0869564981096413,13,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,46,1,True,6,3,6,2, ,3.9373279189136547,0,6.620689655172412,0.0,1.0638297645993668,4,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,46,2,False,3,9,3,8,T,-33.0579438187756,-30,6.620689655172412,0.0,1.0638297645993668,11,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,46,3,False,2,9,2,8, ,-33.93028422574707,-30,6.620689655172412,0.0,1.0638297645993668,12,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,47,1,True,6,3,6,2, ,4.856046385785289,0,6.620689655172412,0.0,1.0416666449652783,3,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,47,2,False,3,9,3,8,T,-32.012009045204294,-30,6.620689655172412,0.0,1.0416666449652783,10,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,47,3,False,2,9,2,8, ,-32.86617569407582,-30,6.620689655172412,0.0,1.0416666449652783,11,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,48,1,True,6,3,6,2, ,5.738562407277445,0,6.620689655172412,0.0,1.0204081424406501,2,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,48,2,False,3,9,3,8,T,-31.007469219220777,-30,6.620689655172412,0.0,1.0204081424406501,9,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,48,3,False,2,9,2,8, ,-31.84420389602211,-30,6.620689655172412,0.0,1.0204081424406501,10,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,49,1,True,6,3,6,2, ,6.5868201036643,0,6.620689655172412,0.0,1.0,1,0.0,50,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,49,2,False,3,9,3,8,T,-30.042068785224586,-30,6.620689655172412,0.0,1.0,8,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,49,3,False,2,9,2,8, ,-30.862068785224587,-30,6.620689655172412,0.0,1.0,9,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,50,1,True,7,3,7,2,T,-29.931103668847122,-30,1.6000000000000008,0.0,1.0,1,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,50,2,False,7,2,7,1, ,-30.751103668847122,-30,1.6000000000000008,0.0,1.0,2,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,50,3,False,7,4,7,3, ,-30.751103668847122,-30,1.6000000000000008,0.0,1.0,2,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,50,4,False,3,9,3,8,T,-36.49110366884712,-30,1.6000000000000008,0.0,1.0,9,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,50,5,False,2,9,2,8, ,-37.31110366884712,-30,1.6000000000000008,0.0,1.0,10,0.8888888888888888,20,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,51,1,True,7,2,7,1, ,5.242190265242197e-05,0,1.5483870967741955,0.0,1.0,1,0.8888888888888888,20,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,51,2,False,7,4,7,3, ,5.242190265242197e-05,0,1.5483870967741955,0.0,1.0,1,0.8888888888888888,20,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,51,3,False,8,3,8,2, ,5.242190265242197e-05,0,1.5483870967741955,0.0,1.0,1,0.8888888888888888,20,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,51,4,False,2,9,2,8, ,-1e+18,-30,1.5483870967741955,0.0,1.0,11,0.0,-10,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,51,5,False,3,9,3,8,T,-1e+18,-30,1.5483870967741955,0.0,1.0,10,0.0,-10,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,52,1,True,7,1,7,0,G,59.059894742239486,50,9.000000000000002,0.0,1.0,1,0.0,70,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,52,2,False,6,1,6,0, ,58.239894742239485,50,9.000000000000002,0.0,1.0,2,0.0,70,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,52,3,False,8,1,8,0, ,58.239894742239485,50,9.000000000000002,0.0,1.0,2,0.0,70,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,52,4,False,7,4,7,3, ,22.726005853350593,0,9.000000000000002,12.5,1.0,2,0.8888888888888888,20,12,tailGain
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,52,5,False,8,3,8,2, ,22.726005853350593,0,9.000000000000002,12.5,1.0,2,0.8888888888888888,20,12,tailGain
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,52,6,False,2,9,2,8, ,-1e+18,-30,9.000000000000002,3.5714285714285716,1.0,12,0.0,-10,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,52,7,False,3,9,3,8,T,-1e+18,-30,9.000000000000002,3.8461538461538463,1.0,11,0.0,-10,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,53,1,True,6,1,6,0, ,8.463723887064889,0,8.727272727272727,0.0,1.2962962722908098,1,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,53,2,False,8,1,8,0, ,8.463723887064889,0,8.727272727272727,0.0,1.2962962722908098,1,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,53,3,False,7,4,7,3, ,6.337798000507961,0,8.727272727272727,0.0,1.2962962722908098,3,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,53,4,False,8,3,8,2, ,6.337798000507961,0,8.727272727272727,0.0,1.2962962722908098,3,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,53,5,False,3,9,3,8,T,-33.228868488998216,-30,8.727272727272727,0.0,1.2962962722908098,12,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,53,6,False,2,9,2,8, ,-34.29183143227668,-30,8.727272727272727,0.0,1.2962962722908098,13,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,54,1,True,8,1,8,0, ,7.200313622795916,0,8.554455445544555,0.0,1.2727272495867774,2,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,54,2,False,7,4,7,3, ,5.113040933473601,0,8.554455445544555,0.0,1.2727272495867774,4,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,54,3,False,8,3,8,2, ,5.113040933473601,0,8.554455445544555,0.0,1.2727272495867774,4,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,54,4,False,3,9,3,8,T,-34.279686168476815,-30,8.554455445544555,0.0,1.2727272495867774,13,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,54,5,False,2,9,2,8, ,-35.323322513137974,-30,8.554455445544555,0.0,1.2727272495867774,14,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,54,6,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.2727272495867774,1,0.0,70,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,55,1,True,8,1,8,0, ,8.22222372701546,0,8.554455445544555,0.0,1.249999977678572,1,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,55,2,False,7,4,7,3, ,6.172223763622602,0,8.554455445544555,0.0,1.249999977678572,3,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,55,3,False,8,3,8,2, ,6.172223763622602,0,8.554455445544555,0.0,1.249999977678572,3,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,55,4,False,3,9,3,8,T,-33.052776071645255,-30,8.554455445544555,0.0,1.249999977678572,12,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,55,5,False,2,9,2,8, ,-34.07777605334169,-30,8.554455445544555,0.0,1.249999977678572,13,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,55,6,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.249999977678572,2,0.0,70,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,56,1,True,9,1,9,0, ,7.929921173372996,0,8.307692307692307,0.0,1.2280701538935062,1,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,56,2,False,7,4,7,3, ,4.908868594794971,0,8.307692307692307,0.0,1.2280701538935062,4,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,56,3,False,8,3,8,2, ,4.908868594794971,0,8.307692307692307,0.0,1.2280701538935062,4,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,56,4,False,3,9,3,8,T,-34.1542891409391,-30,8.307692307692307,0.0,1.2280701538935062,13,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,56,5,False,2,9,2,8, ,-35.16130666713178,-30,8.307692307692307,0.0,1.2280701538935062,14,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,56,6,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.2280701538935062,3,0.0,70,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,57,1,True,7,4,7,3, ,3.6922307551985476,0,8.074766355140188,0.0,1.206896530915577,5,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,57,2,False,8,3,8,2, ,3.6922307551985476,0,8.074766355140188,0.0,1.206896530915577,5,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,57,3,False,3,9,3,8,T,-35.21466564295841,-30,8.074766355140188,0.0,1.206896530915577,14,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,57,4,False,2,9,2,8, ,-36.20432079830918,-30,8.074766355140188,0.0,1.206896530915577,15,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,57,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.206896530915577,4,0.0,70,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,58,1,True,7,4,7,3, ,4.712290139894392,0,8.074766355140188,0.0,1.186440657856938,4,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,58,2,False,8,3,8,2, ,4.712290139894392,0,8.074766355140188,0.0,1.186440657856938,4,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,58,3,False,3,9,3,8,T,-34.04364191508981,-30,8.074766355140188,0.0,1.186440657856938,13,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,58,4,False,2,9,2,8, ,-35.0165232545325,-30,8.074766355140188,0.0,1.186440657856938,14,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,58,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.186440657856938,3,0.0,70,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,59,1,True,7,4,7,3, ,5.704462718068667,0,8.074766355140188,0.0,1.1666666472222227,3,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,59,2,False,8,3,8,2, ,5.704462718068667,0,8.074766355140188,0.0,1.1666666472222227,3,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,59,3,False,3,9,3,8,T,-32.905537138431335,-30,8.074766355140188,0.0,1.1666666472222227,12,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,59,4,False,2,9,2,8, ,-33.86220378915356,-30,8.074766355140188,0.0,1.1666666472222227,13,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,59,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.1666666472222227,2,0.0,70,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,60,1,True,7,4,7,3, ,6.669013226028652,0,8.074766355140188,0.0,1.1475409647944104,2,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,60,2,False,8,3,8,2, ,6.669013226028652,0,8.074766355140188,0.0,1.1475409647944104,2,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,60,3,False,3,9,3,8,T,-31.799839094154095,-30,8.074766355140188,0.0,1.1475409647944104,11,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,60,4,False,2,9,2,8, ,-32.74082268528551,-30,8.074766355140188,0.0,1.1475409647944104,12,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,60,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.1475409647944104,3,0.0,70,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,61,1,True,7,4,7,3, ,7.606388162055864,0,8.074766355140188,0.0,1.1290322398543187,1,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,61,2,False,8,3,8,2, ,7.606388162055864,0,8.074766355140188,0.0,1.1290322398543187,1,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,61,3,False,3,9,3,8,T,-30.72586976806901,-30,8.074766355140188,0.0,1.1290322398543187,10,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,61,4,False,2,9,2,8, ,-31.65167620474955,-30,8.074766355140188,0.0,1.1290322398543187,11,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,61,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.1290322398543187,4,0.0,70,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,62,1,True,8,3,8,2, ,2.3372794825925105,0,3.96330275229358,0.0,1.111111093474427,2,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,62,2,False,8,5,8,4, ,-27.66272051740749,-30,3.96330275229358,0.0,1.111111093474427,2,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,62,3,False,7,5,7,4,T,-30.91111109664903,-30,0.0,0.0,1.111111093474427,1,0.0,40,0,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,62,4,False,3,9,3,8,T,-35.86272038724876,-30,3.96330275229358,0.0,1.111111093474427,11,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,62,5,False,2,9,2,8, ,-36.773831483897794,-30,3.96330275229358,0.0,1.111111093474427,12,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,62,6,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.111111093474427,5,0.0,70,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,63,1,True,8,3,8,2, ,3.23997180285598,0,3.96330275229358,0.0,1.0937499829101565,1,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,63,2,False,8,5,8,4, ,-28.553778169116676,-30,3.96330275229358,0.0,1.0937499829101565,3,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,63,3,False,7,5,7,4,T,-31.793749971972655,-30,0.0,0.0,1.0937499829101565,2,0.0,40,0,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,63,4,False,3,9,3,8,T,-34.831903071020974,-30,3.96330275229358,0.0,1.0937499829101565,10,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,63,5,False,2,9,2,8, ,-35.728778057007304,-30,3.96330275229358,0.0,1.0937499829101565,11,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,63,6,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.0937499829101565,4,0.0,70,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,64,1,True,9,3,9,2, ,3.1578469271701537,0,3.8918918918918903,0.0,1.07692306035503,1,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,64,2,False,8,5,8,4, ,-29.49138380130322,-30,3.8918918918918903,0.0,1.07692306035503,4,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,64,3,False,7,5,7,4,T,-32.64923072847337,-30,0.0,0.0,1.07692306035503,3,0.0,40,0,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,64,4,False,3,9,3,8,T,-35.67292216774109,-30,3.8918918918918903,0.0,1.07692306035503,11,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,64,5,False,2,9,2,8, ,-36.555999077232215,-30,3.8918918918918903,0.0,1.07692306035503,12,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,64,6,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.07692306035503,5,0.0,70,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,65,1,True,10,3,10,2, ,3.0793356800748706,0,3.8230088495575245,0.0,1.0606060445362722,1,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,65,2,False,8,5,8,4, ,-30.3994521460041,-30,3.8230088495575245,0.0,1.0606060445362722,5,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,65,3,False,7,5,7,4,T,-33.47878782607897,-30,0.0,0.0,1.0606060445362722,4,0.0,40,0,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,65,4,False,3,9,3,8,T,-36.487330841642304,-30,3.8230088495575245,0.0,1.0606060445362722,12,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,65,5,False,2,9,2,8, ,-37.35702779816205,-30,3.8230088495575245,0.0,1.0606060445362722,13,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,65,6,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.0606060445362722,6,0.0,70,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,66,1,True,11,3,11,2, ,2.9690316095573257,0,3.7241379310344818,0.0,1.044776103809312,1,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,66,2,False,11,2,11,1, ,2.1123152044336897,0,3.7241379310344818,0.0,1.044776103809312,2,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,66,3,False,8,5,8,4, ,-31.314550416060854,-30,3.7241379310344818,0.0,1.044776103809312,6,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,66,4,False,7,5,7,4,T,-34.28358202561818,-30,0.0,0.0,1.044776103809312,5,0.0,40,0,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,66,5,False,3,9,3,8,T,-37.311565251926304,-30,3.7241379310344818,0.0,1.044776103809312,13,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,66,6,False,2,9,2,8, ,-38.16828165704994,-30,3.7241379310344818,0.0,1.044776103809312,14,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,66,7,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.044776103809312,7,0.0,70,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,67,1,True,11,2,11,1, ,2.8634625282491286,0,3.6302521008403357,0.0,1.0294117495674744,1,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,67,2,False,8,5,8,4, ,-32.201243279622844,-30,3.6302521008403357,0.0,1.0294117495674744,7,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,67,3,False,7,5,7,4,T,-35.064705807871974,-30,0.0,0.0,1.0294117495674744,6,0.0,40,0,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,67,4,False,3,9,3,8,T,-38.11006672214015,-30,3.6302521008403357,0.0,1.0294117495674744,14,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,67,5,False,2,9,2,8, ,-38.954184356785476,-30,3.6302521008403357,0.0,1.0294117495674744,15,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,67,6,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.0294117495674744,8,0.0,70,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,68,1,True,11,1,11,0, ,2.7938604389641455,0,3.5702479338842985,0.0,1.014492738920395,1,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,68,2,False,12,1,12,0, ,1.9619763930494214,0,3.5702479338842985,0.0,1.014492738920395,2,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,68,3,False,8,5,8,4, ,-33.02932788243892,-30,3.5702479338842985,0.0,1.014492738920395,8,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,68,4,False,7,5,7,4,T,-35.823188321403066,-30,0.0,0.0,1.014492738920395,7,0.0,40,0,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,68,5,False,3,9,3,8,T,-38.85251620384199,-30,3.5702479338842985,0.0,1.014492738920395,15,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,68,6,False,2,9,2,8, ,-39.68440024975671,-30,3.5702479338842985,0.0,1.014492738920395,16,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,68,7,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.014492738920395,9,0.0,70,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,69,1,True,12,1,12,0, ,2.727176656355237,0,3.5121951219512177,0.0,1.0,1,0.0,70,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,69,2,False,8,5,8,4, ,-33.83282334364476,-30,3.5121951219512177,0.0,1.0,9,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,69,3,False,7,5,7,4,T,-36.56,-30,0.0,0.0,1.0,8,0.0,40,0,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,69,4,False,3,9,3,8,T,-39.572823343644764,-30,3.5121951219512177,0.0,1.0,16,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,69,5,False,2,9,2,8, ,-40.392823343644764,-30,3.5121951219512177,0.0,1.0,17,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,69,6,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.0,10,0.0,70,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,70,1,True,13,1,13,0,G,58.36907047619642,50,9.142857142857144,0.0,1.0,1,0.0,120,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,70,2,False,5,1,5,0, ,-4.289230769230769,0,0.0,3.8461538461538463,1.0,11,0.0,70,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,70,3,False,8,5,8,4, ,-23.88592952380358,-30,9.142857142857144,4.166666666666667,1.0,10,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,70,4,False,3,9,3,8,T,-31.51408741854042,-30,9.142857142857144,2.6315789473684212,1.0,17,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,70,5,False,7,5,7,4,T,-31.789090909090906,-30,0.0,4.545454545454546,1.0,9,0.0,40,0,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,70,6,False,2,9,2,8, ,-32.49592952380358,-30,9.142857142857144,2.5,1.0,18,0.0,40,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,71,1,True,8,5,8,4, ,-36.10660428121207,-30,8.930232558139537,0.0,1.666666643518519,11,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,71,2,False,7,5,7,4,T,-43.66666647685186,-30,0.0,0.0,1.666666643518519,10,0.0,90,0,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,71,3,False,3,9,3,8,T,-45.67327081500837,-30,8.930232558139537,0.0,1.666666643518519,18,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,71,4,False,2,9,2,8, ,-47.03993746269356,-30,8.930232558139537,0.0,1.666666643518519,19,0.0,90,12,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,71,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.666666643518519,12,0.0,120,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,72,1,True,8,5,8,4, ,-34.59163688239676,-30,8.930232558139537,0.0,1.6438355939200604,10,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,72,2,False,7,5,7,4,T,-42.13150668313004,-30,0.0,0.0,1.6438355939200604,9,0.0,90,0,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,72,3,False,3,9,3,8,T,-44.027253191497906,-30,8.930232558139537,0.0,1.6438355939200604,17,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,72,4,False,2,9,2,8, ,-45.37519837851236,-30,8.930232558139537,0.0,1.6438355939200604,18,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,72,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.6438355939200604,11,0.0,120,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,73,1,True,8,5,8,4, ,-33.11088350255773,-30,8.930232558139537,0.0,1.6216215997078163,9,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,73,2,False,7,5,7,4,T,-40.637837694083274,-30,0.0,0.0,1.6216215997078163,8,0.0,90,0,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,73,3,False,3,9,3,8,T,-42.4189914848806,-30,8.930232558139537,0.0,1.6216215997078163,16,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,73,4,False,2,9,2,8, ,-43.74872119664101,-30,8.930232558139537,0.0,1.6216215997078163,17,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,73,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.6216215997078163,10,0.0,120,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,74,1,True,8,5,8,4, ,-31.66422082433682,-30,8.930232558139537,0.0,1.599999978666667,8,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,74,2,False,7,5,7,4,T,-39.18399987754667,-30,0.0,0.0,1.599999978666667,7,0.0,90,0,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,74,3,False,3,9,3,8,T,-40.84822070188349,-30,8.930232558139537,0.0,1.599999978666667,15,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,74,4,False,2,9,2,8, ,-42.160220684390154,-30,8.930232558139537,0.0,1.599999978666667,16,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,74,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.599999978666667,9,0.0,120,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,75,1,True,8,5,8,4, ,-30.25130263382379,-30,8.930232558139537,0.0,1.5789473476454297,7,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,75,2,False,7,5,7,4,T,-37.76842095041551,-30,0.0,0.0,1.5789473476454297,6,0.0,90,0,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,75,3,False,3,9,3,8,T,-39.31446040930855,-30,8.930232558139537,0.0,1.5789473476454297,14,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,75,4,False,2,9,2,8, ,-40.60919723437781,-30,8.930232558139537,0.0,1.5789473476454297,15,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,75,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.5789473476454297,8,0.0,120,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,76,1,True,8,5,8,4, ,-28.87161634153758,-30,8.930232558139537,0.0,1.558441538202058,6,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,76,2,False,7,5,7,4,T,-36.38961030662844,-30,0.0,0.0,1.558441538202058,5,0.0,90,0,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,76,3,False,3,9,3,8,T,-37.817070770817395,-30,8.930232558139537,0.0,1.558441538202058,13,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,76,4,False,2,9,2,8, ,-39.09499283214308,-30,8.930232558139537,0.0,1.558441538202058,14,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,76,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.558441538202058,7,0.0,120,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,77,1,True,8,5,8,4, ,-27.524527492603465,-30,8.930232558139537,0.0,1.538461518737673,5,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,77,2,False,7,5,7,4,T,-35.046153781459566,-30,0.0,0.0,1.538461518737673,4,0.0,90,0,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,77,3,False,3,9,3,8,T,-36.35529661015771,-30,8.930232558139537,0.0,1.538461518737673,12,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,77,4,False,2,9,2,8, ,-37.6168350555226,-30,8.930232558139537,0.0,1.538461518737673,13,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,77,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.538461518737673,6,0.0,120,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,78,1,True,8,5,8,4, ,-26.209314717481284,-30,8.930232558139537,0.0,1.5189873225444643,4,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,78,2,False,7,5,7,4,T,-33.73670881345938,-30,0.0,0.0,1.5189873225444643,3,0.0,90,0,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,78,3,False,3,9,3,8,T,-34.92830194888651,-30,8.930232558139537,0.0,1.5189873225444643,11,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,78,4,False,2,9,2,8, ,-36.17387155337297,-30,8.930232558139537,0.0,1.5189873225444643,12,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,78,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.5189873225444643,5,0.0,120,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,79,1,True,8,5,8,4, ,-24.925197080415593,-30,8.930232558139537,0.0,1.4999999812500002,3,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,79,2,False,7,5,7,4,T,-32.45999996925,-30,0.0,0.0,1.4999999812500002,2,0.0,90,0,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,79,3,False,3,9,3,8,T,-33.535196972790594,-30,8.930232558139537,0.0,1.4999999812500002,10,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,79,4,False,2,9,2,8, ,-34.7651969574156,-30,8.930232558139537,0.0,1.4999999812500002,11,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,79,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.4999999812500002,4,0.0,120,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,80,1,True,8,5,8,4, ,-23.671355387778917,-30,8.930232558139537,0.0,1.481481463191587,2,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,80,2,False,7,5,7,4,T,-31.214814799817102,-30,0.0,0.0,1.481481463191587,1,0.0,90,0,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,80,3,False,3,9,3,8,T,-34.60468858613282,-30,8.930232558139537,0.0,1.481481463191587,11,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,80,4,False,2,9,2,8, ,-35.81950338594993,-30,8.930232558139537,0.0,1.481481463191587,12,0.0,90,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,80,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.481481463191587,5,0.0,120,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,81,1,True,8,5,8,4, ,7.853051293547599,0,8.930232558139537,0.0,1.0975609622248663,1,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,81,2,False,3,9,3,8,T,-32.0469485857207,-30,8.930232558139537,0.0,1.0975609622248663,12,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,81,3,False,2,9,2,8, ,-32.946948574745086,-30,8.930232558139537,0.0,1.0975609622248663,13,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,81,4,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.0975609622248663,6,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,82,1,True,9,5,9,4, ,7.717146928511097,0,8.793893129770991,0.0,1.084337336333285,1,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,82,2,False,9,6,9,5, ,6.827990312717803,0,8.793893129770991,0.0,1.084337336333285,2,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,82,3,False,3,9,3,8,T,-32.95273246100843,-30,8.793893129770991,0.0,1.084337336333285,13,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,82,4,False,2,9,2,8, ,-33.84188907680172,-30,8.793893129770991,0.0,1.084337336333285,14,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,82,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.084337336333285,7,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,83,1,True,9,6,9,5, ,7.579063254392266,0,8.661654135338345,0.0,1.0714285586734695,1,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,83,2,False,10,5,10,4, ,7.579063254392266,0,8.661654135338345,0.0,1.0714285586734695,1,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,83,3,False,3,9,3,8,T,-33.84236518106692,-30,8.661654135338345,0.0,1.0714285586734695,14,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,83,4,False,2,9,2,8, ,-34.72093659917916,-30,8.661654135338345,0.0,1.0714285586734695,15,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,83,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.0714285586734695,8,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,84,1,True,9,7,9,6, ,7.440091629802696,0,8.533333333333335,0.0,1.0588235169550175,1,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,84,2,False,10,5,10,4, ,6.571856345899582,0,8.533333333333335,0.0,1.0588235169550175,2,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,84,3,False,10,7,10,6, ,6.571856345899582,0,8.533333333333335,0.0,1.0588235169550175,2,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,84,4,False,3,9,3,8,T,-34.715202344840904,-30,8.533333333333335,0.0,1.0588235169550175,15,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,84,5,False,2,9,2,8, ,-35.583437628744015,-30,8.533333333333335,0.0,1.0588235169550175,16,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,84,6,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.0588235169550175,9,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,85,1,True,10,7,10,6, ,7.301214327026836,0,8.408759124087592,0.0,1.046511615738237,1,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,85,2,False,10,5,10,4, ,5.584935277216127,0,8.408759124087592,0.0,1.046511615738237,3,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,85,3,False,3,9,3,8,T,-35.57087854655348,-30,8.408759124087592,0.0,1.046511615738237,16,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,85,4,False,2,9,2,8, ,-36.429018071458835,-30,8.408759124087592,0.0,1.046511615738237,17,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,85,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.046511615738237,10,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,86,1,True,11,7,11,6, ,7.101624483657283,0,8.228571428571431,0.0,1.0344827467300834,1,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,86,2,False,11,8,11,7, ,6.253348631338614,0,8.228571428571431,0.0,1.0344827467300834,2,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,86,3,False,10,5,10,4, ,4.556796926701278,0,8.228571428571431,0.0,1.0344827467300834,4,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,86,4,False,3,9,3,8,T,-36.470789153441416,-30,8.228571428571431,0.0,1.0344827467300834,17,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,86,5,False,2,9,2,8, ,-37.31906500576008,-30,8.228571428571431,0.0,1.0344827467300834,18,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,86,6,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.0344827467300834,11,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,87,1,True,11,8,11,7, ,6.904614851470643,0,8.055944055944055,0.0,1.0227272611053722,1,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,87,2,False,12,7,12,6, ,6.904614851470643,0,8.055944055944055,0.0,1.0227272611053722,1,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,87,3,False,10,5,10,4, ,3.550069435045022,0,8.055944055944055,0.0,1.0227272611053722,5,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,87,4,False,3,9,3,8,T,-37.35220316833825,-30,8.055944055944055,0.0,1.0227272611053722,18,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,87,5,False,2,9,2,8, ,-38.19083952244465,-30,8.055944055944055,0.0,1.0227272611053722,19,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,87,6,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.0227272611053722,12,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,88,1,True,11,9,11,8, ,6.7111054035670525,0,7.890410958904111,0.0,1.0112359436939782,1,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,88,2,False,10,9,10,8, ,5.881891929737991,0,7.890410958904111,0.0,1.0112359436939782,2,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,88,3,False,12,7,12,6, ,5.881891929737991,0,7.890410958904111,0.0,1.0112359436939782,2,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,88,4,False,10,5,10,4, ,2.5650380344217423,0,7.890410958904111,0.0,1.0112359436939782,6,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,88,5,False,3,9,3,8,T,-38.214737125356066,-30,7.890410958904111,0.0,1.0112359436939782,19,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,88,6,False,2,9,2,8, ,-39.04395059918512,-30,7.890410958904111,0.0,1.0112359436939782,20,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,88,7,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.0112359436939782,13,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,89,1,True,10,9,10,8, ,6.521734478097679,0,7.731543624161076,0.0,1.0,1,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,89,2,False,12,7,12,6, ,4.8817344780976795,0,7.731543624161076,0.0,1.0,3,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,89,3,False,10,5,10,4, ,1.60173447809768,0,7.731543624161076,0.0,1.0,7,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,89,4,False,3,9,3,8,T,-39.05826552190232,-30,7.731543624161076,0.0,1.0,20,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,89,5,False,2,9,2,8, ,-39.87826552190232,-30,7.731543624161076,0.0,1.0,21,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,89,6,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.0,14,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,90,1,True,12,7,12,6, ,3.9193687540709603,0,7.629139072847684,0.0,1.0,4,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,90,2,False,10,5,10,4, ,0.6393687540709605,0,7.629139072847684,0.0,1.0,8,0.0,90,12,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,90,3,False,3,9,3,8,T,-40.02063124592904,-30,7.629139072847684,0.0,1.0,21,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,90,4,False,2,9,2,8, ,-40.84063124592904,-30,7.629139072847684,0.0,1.0,22,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,90,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.0,15,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,90,6,False,9,9,9,8, ,-1e+18,0,0.0,0.0,1.0,1,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,91,1,True,12,7,12,6, ,4.70326938786254,0,7.629139072847684,0.0,1.0,3,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,91,2,False,10,5,10,4, ,1.4232693878625406,0,7.629139072847684,0.0,1.0,7,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,91,3,False,3,9,3,8,T,-39.23673061213746,-30,7.629139072847684,0.0,1.0,20,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,91,4,False,2,9,2,8, ,-40.05673061213746,-30,7.629139072847684,0.0,1.0,21,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,91,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.0,14,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,91,6,False,9,9,9,8, ,-1e+18,0,0.0,0.0,1.0,2,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,92,1,True,12,7,12,6, ,5.4943898948958045,0,7.629139072847684,0.0,1.0,2,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,92,2,False,10,5,10,4, ,2.2143898948958043,0,7.629139072847684,0.0,1.0,6,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,92,3,False,3,9,3,8,T,-38.445610105104194,-30,7.629139072847684,0.0,1.0,19,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,92,4,False,2,9,2,8, ,-39.265610105104194,-30,7.629139072847684,0.0,1.0,20,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,92,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.0,13,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,92,6,False,9,9,9,8, ,-1e+18,0,0.0,0.0,1.0,3,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,93,1,True,12,7,12,6, ,6.291286300522415,0,7.629139072847684,0.0,1.0,1,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,93,2,False,10,5,10,4, ,3.011286300522416,0,7.629139072847684,0.0,1.0,5,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,93,3,False,3,9,3,8,T,-37.64871369947758,-30,7.629139072847684,0.0,1.0,18,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,93,4,False,2,9,2,8, ,-38.46871369947758,-30,7.629139072847684,0.0,1.0,19,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,93,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.0,12,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,93,6,False,9,9,9,8, ,-1e+18,0,0.0,0.0,1.0,4,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,94,1,True,13,7,13,6, ,6.1225027892698165,0,7.4805194805194795,0.0,1.0,1,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,94,2,False,13,8,13,7, ,5.302502789269817,0,7.4805194805194795,0.0,1.0,2,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,94,3,False,10,5,10,4, ,2.022502789269817,0,7.4805194805194795,0.0,1.0,6,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,94,4,False,3,9,3,8,T,-38.63749721073018,-30,7.4805194805194795,0.0,1.0,19,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,94,5,False,2,9,2,8, ,-39.45749721073018,-30,7.4805194805194795,0.0,1.0,20,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,94,6,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.0,13,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,94,7,False,9,9,9,8, ,-1e+18,0,0.0,0.0,1.0,5,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,95,1,True,13,8,13,7, ,5.954141574996213,0,7.337579617834397,0.0,1.0,1,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,95,2,False,10,5,10,4, ,1.0341415749962142,0,7.337579617834397,0.0,1.0,7,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,95,3,False,3,9,3,8,T,-39.625858425003784,-30,7.337579617834397,0.0,1.0,20,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,95,4,False,2,9,2,8, ,-40.445858425003784,-30,7.337579617834397,0.0,1.0,21,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,95,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.0,14,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,95,6,False,9,9,9,8, ,-1e+18,0,0.0,0.0,1.0,6,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,96,1,True,13,9,13,8, ,5.832820907764115,0,7.2452830188679265,0.0,1.0,1,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,96,2,False,10,5,10,4, ,0.092820907764116,0,7.2452830188679265,0.0,1.0,8,0.0,90,12,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,96,3,False,3,9,3,8,T,-40.56717909223588,-30,7.2452830188679265,0.0,1.0,21,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,96,4,False,2,9,2,8, ,-41.38717909223588,-30,7.2452830188679265,0.0,1.0,22,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,96,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.0,15,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,96,6,False,9,9,9,8, ,-1e+18,0,0.0,0.0,1.0,7,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,97,1,True,13,10,13,9, ,5.7138102719697,0,7.155279503105589,0.0,1.0,1,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,97,2,False,10,5,10,4, ,-0.8461897280302999,0,7.155279503105589,0.0,1.0,9,0.0,90,12,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,97,3,False,3,9,3,8,T,-41.5061897280303,-30,7.155279503105589,0.0,1.0,22,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,97,4,False,2,9,2,8, ,-42.3261897280303,-30,7.155279503105589,0.0,1.0,23,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,97,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.0,16,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,97,6,False,9,9,9,8, ,-1e+18,0,0.0,0.0,1.0,8,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,98,1,True,13,11,13,10, ,5.55414231569441,0,7.024390243902438,0.0,1.0,1,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,98,2,False,10,5,10,4, ,-1.8258576843055891,0,7.024390243902438,0.0,1.0,10,0.0,90,12,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,98,3,False,3,9,3,8,T,-42.485857684305586,-30,7.024390243902438,0.0,1.0,23,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,98,4,False,2,9,2,8, ,-43.30585768430559,-30,7.024390243902438,0.0,1.0,24,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,98,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.0,17,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,98,6,False,9,9,9,8, ,-1e+18,0,0.0,0.0,1.0,9,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,99,1,True,13,12,13,11, ,5.396667112689262,0,6.898203592814372,0.0,1.0,1,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,99,2,False,10,5,10,4, ,-2.803332887310737,0,6.898203592814372,0.0,1.0,11,0.0,90,12,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,99,3,False,3,9,3,8,T,-43.46333288731074,-30,6.898203592814372,0.0,1.0,24,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,99,4,False,2,9,2,8, ,-44.283332887310735,-30,6.898203592814372,0.0,1.0,25,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,99,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.0,18,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,99,6,False,9,9,9,8, ,-1e+18,0,0.0,0.0,1.0,10,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,100,1,True,13,13,13,12, ,5.24191689601589,0,6.776470588235296,0.0,1.0,1,0.0,90,12,Iproxy
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,100,2,False,10,5,10,4, ,-3.77808310398411,0,6.776470588235296,0.0,1.0,12,0.0,90,12,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,100,3,False,3,9,3,8,T,-44.43808310398411,-30,6.776470588235296,0.0,1.0,25,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,100,4,False,2,9,2,8, ,-45.258083103984106,-30,6.776470588235296,0.0,1.0,26,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,100,5,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.0,19,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,100,6,False,9,9,9,8, ,-1e+18,0,0.0,0.0,1.0,11,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,101,1,False,10,5,10,4, ,-4.749738092411233,0,6.658959537572253,0.0,1.0,13,0.0,90,12,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,101,2,False,3,9,3,8,T,-45.40973809241123,-30,6.658959537572253,0.0,1.0,26,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,101,3,False,2,9,2,8, ,-46.229738092411225,-30,6.658959537572253,0.0,1.0,27,0.0,60,12,deltaR
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,101,4,False,5,1,5,0, ,-1e+18,0,0.0,0.0,1.0,20,0.0,90,0,pathLen
+train_0143,C:\Users\tao20\Desktop\Algorithm\AIPlayerDesktop\data\蔡扬的\train\train_0143.json,101,5,False,9,9,9,8, ,-1e+18,0,0.0,0.0,1.0,12,0.0,90,0,pathLen
