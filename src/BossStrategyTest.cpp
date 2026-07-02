@@ -55,7 +55,7 @@ int main()
     require(result.at("reviveRule").value("restartPosition", "") == "S", "revive should restart from S");
     require(result.value("turns", 0) <= 11, "rolling light-capacity strategy should meet minRounds=11");
     require(result.value("withinMinRounds", false), "sample should be defeated within minRounds");
-    require(result.value("algorithm", "") == "rolling_horizon_damage_capacity_boss_planner",
+    require(result.value("algorithm", "") == "滚动时域Boss规划",
             "boss strategy should report rolling light-capacity planner");
     require(result.value("knownHpPersistenceImplemented", false),
             "boss strategy should implement known HP persistence across attempts");
@@ -98,7 +98,7 @@ int main()
                            {"minRounds", 45}};
     const Json highHpResult = runBossBattleJson(highHpInput);
     require(highHpResult.value("ok", false), "high-HP case should be solved by light-capacity planner");
-    require(highHpResult.value("algorithm", "") == "rolling_horizon_damage_capacity_boss_planner",
+    require(highHpResult.value("algorithm", "") == "滚动时域Boss规划",
             "high-HP case should use rolling light-capacity planner");
     require(highHpResult.at("attempts")[0].at("phases")[0].at("candidateScores")[0].contains("lightScore"),
             "high-HP candidate scores should include lightScore");

@@ -57,43 +57,61 @@ int manhattan(Position a, Position b)
 template <typename Walkable>
 std::vector<Position> branchBoundSearch(Position start, Position target, Walkable isWalkable)
 {
+    // 起点或终点不可通行，直接返回空路径。
     if (!isWalkable(start) || !isWalkable(target)) return {};
+    // 起点等于终点时无需搜索，直接返回单点路径。
     if (start == target) return {start};
 
+    // currentPath 维护当前递归栈上从 start 到当前节点的路径序列。
     std::vector<Position> currentPath{start};
+    // bestPath 记录迄今为止找到的最短完整路径。
     std::vector<Position> bestPath;
+    // visited 记录当前路径上已走过的格子，用于避免回路（每个格子只能走一次）。
     std::set<Position> visited{start};
+    // bestLength 是当前最优解的长度，初始为 INT_MAX 表示未找到任何解。
+    // 分支限界的核心：任何分支的"已走步数 + 下界估计"不小于 bestLength 时都可以剪枝。
     int bestLength = INT_MAX;
 
     std::function<void(Position)> dfs = [&](Position current) {
+        // currentLength 是从 start 到 current 已走的实际步数（不含起点本身）。
         const int currentLength = static_cast<int>(currentPath.size()) - 1;
+        // 剪枝判断：若"已走步数 + 曼哈顿距离下界"已经不小于当前最优解长度，
+        // 继续走这条路不可能得到更短的路径，直接回溯。
         if (currentLength + manhattan(current, target) >= bestLength) return;
+        // 到达目标格子，更新当前最优解。
         if (current == target) {
             bestLength = currentLength;
             bestPath = currentPath;
             return;
         }
 
+        // 收集当前格子的所有合法分支（邻居）。
         std::vector<Position> branches;
         for (const auto [dr, dc] : kDirs) {
             const Position next{current.first + dr, current.second + dc};
+            // 已经访问过或不可通行的邻居不加入分支列表，避免重复走和撞墙。
             if (visited.count(next) || !isWalkable(next)) continue;
             branches.push_back(next);
         }
+        // 将分支按曼哈顿距离升序排列：优先扩展离目标"看起来近"的分支。
+        // 这样做的目的是让搜索尽早找到一个可行解（上界），从而更有效地剪掉后续分支。
         std::sort(branches.begin(), branches.end(), [&](Position lhs, Position rhs) {
             return manhattan(lhs, target) < manhattan(rhs, target);
         });
 
+        // 按启发式排序后的顺序递归扩展每个分支。
         for (const auto &next : branches) {
-            visited.insert(next);
-            currentPath.push_back(next);
-            dfs(next);
-            currentPath.pop_back();
-            visited.erase(next);
+            visited.insert(next);        // 标记为已访问，避免在更深层递归中形成回路。
+            currentPath.push_back(next); // 将邻居加入当前路径。
+            dfs(next);                   // 递归搜索该分支。
+            currentPath.pop_back();      // 回溯：撤销路径中的这一步。
+            visited.erase(next);         // 回溯：取消访问标记。
         }
     };
 
+    // 从起点开始深度优先搜索。
     dfs(start);
+    // 如果 bestPath 仍然为空，说明在搜索空间中未找到任何可达路径。
     return bestPath;
 }
 
@@ -112,6 +130,8 @@ std::vector<Position> branchBoundSearch(Position start, Position target, Walkabl
  */
 std::vector<Position> branchBoundPath(const MazeData &data, Position start, Position target)
 {
+    // 将迷宫格子可通行性判断适配为 branchBoundSearch 所需的 Walkable 可调用对象。
+    // mazeWalkable 把墙"#"视为不可通行，Boss 格按普通可通行格处理。
     return branchBoundSearch(start, target, [&](Position pos) { return mazeWalkable(data, pos); });
 }
 
@@ -129,6 +149,8 @@ std::vector<Position> branchBoundPath(const MazeData &data, Position start, Posi
  */
 std::vector<Position> branchBoundPath(const LocalKnownMap &localMap, Position start, Position target)
 {
+    // 在局部已知地图上做分支限界搜索。
+    // isWalkableForPlanning 只把已观察且非墙的格子标记为可通行。
     return branchBoundSearch(start, target, [&](Position pos) { return localMap.isWalkableForPlanning(pos); });
 }
 

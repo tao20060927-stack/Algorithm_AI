@@ -1,4 +1,4 @@
-﻿#ifndef RESOURCE_PICKUP_STRATEGY_H
+#ifndef RESOURCE_PICKUP_STRATEGY_H
 #define RESOURCE_PICKUP_STRATEGY_H
 
 #include "GameTypes.h"
@@ -12,9 +12,9 @@ namespace ai_player {
  * 输出：
  *   - 返回 JSON 结果，包含路径、逐步帧、资源值、步数、资源/步数比值和状态统计。
  * 关键逻辑：
- *   - 每轮选择能让“投影后资源/步数比值”最高且高于当前比值的资源目标，无法提升时立即停止。
+ *   - 每轮选择能让"投影后资源/步数比值"最高且高于当前比值的资源目标，无法提升时立即停止。
  */
-Json solveResourcePickupJson(const Json &source);
+Json solveResourcePickupJson(const Json &source); // PDF 第一问入口：3x3 局部投影比值贪心资源拾取
 
 } // namespace ai_player
 

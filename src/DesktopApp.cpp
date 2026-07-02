@@ -38,19 +38,19 @@ std::wstring buildAppHtml()
 <style>
 *{box-sizing:border-box}body{margin:0;font-family:"Segoe UI","Microsoft YaHei",Arial,sans-serif;background:#f3f6fa;color:#17202c}
 button,select,textarea,input{font:inherit}button,select{height:34px;border:1px solid #cfd7e3;border-radius:6px;background:#fff}
-button{cursor:pointer;padding:0 10px}button:hover{border-color:#2563eb;color:#2563eb}
+button{cursor:pointer;padding:0 10px}button:hover,button.active{border-color:#2563eb;color:#2563eb}
 .app{display:grid;grid-template-columns:360px 1fr;height:100vh}.side{padding:18px;background:#fff;border-right:1px solid #d7dde5;display:flex;flex-direction:column;gap:12px}
 h1{font-size:24px;margin:0}p{margin:4px 0 0;color:#667085;font-size:13px}.label{display:flex;flex-direction:column;gap:7px;color:#667085;font-size:13px}
 textarea{height:300px;resize:vertical;border:1px solid #d7dde5;border-radius:6px;padding:10px;font:12px/1.45 Consolas,monospace;background:#fbfcfe}
     .row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.row.four{grid-template-columns:repeat(4,1fr)}.row.five{grid-template-columns:repeat(5,1fr)}
-.main{display:grid;grid-template-rows:auto minmax(0,1fr)170px;gap:14px;padding:18px;min-width:0}
+.main{display:grid;grid-template-rows:auto minmax(0,1fr);gap:14px;padding:18px;min-width:0}
 .stats{display:grid;grid-template-columns:repeat(4,minmax(110px,1fr));gap:10px}.stat,.panel{background:#fff;border:1px solid #d7dde5;border-radius:8px;padding:11px}
 .stat span{display:block;color:#667085;font-size:12px}.stat strong{font-size:22px;display:block;margin-top:3px}.board-wrap{background:#fff;border:1px solid #d7dde5;border-radius:8px;padding:16px;display:grid;place-items:center;overflow:auto}
 #board{display:grid;gap:2px;width:min(72vh,100%);max-width:740px;aspect-ratio:1/1}.cell{display:grid;place-items:center;border-radius:3px;min-width:0;min-height:0;font-weight:700;font-size:13px;border:1px solid rgba(0,0,0,.06)}
 .unknown{background:#111827;color:#111827}.wall{background:#263241}.road{background:#f8fafc}.start{background:#dbeafe;color:#1d4ed8}.exit{background:#16a34a;color:#fff}.gold{background:#f7c948}.trap{background:#e05d5d;color:#fff}.boss{background:#7c3aed;color:#fff}
 .path{outline:2px solid rgba(37,99,235,.55);outline-offset:-2px}.visible{filter:brightness(1.08)}.player{box-shadow:inset 0 0 0 3px #111827}
 .monitor{background:#fff;border:1px solid #d7dde5;border-radius:8px;padding:16px;overflow:auto;width:100%;height:100%}.hidden{display:none}.debug-grid{display:grid;grid-template-columns:repeat(6,minmax(90px,1fr));gap:8px;margin-bottom:12px}.debug-grid div{border:1px solid #e1e7ef;border-radius:6px;padding:8px;background:#fbfcfe}.debug-grid span{display:block;color:#667085;font-size:11px}.debug-grid strong{font-size:16px}.diagnosis{border:1px solid #d7dde5;border-radius:6px;padding:10px;margin-bottom:12px;background:#f8fafc;color:#17202c}.debug-table{width:100%;border-collapse:collapse;font-size:12px}.debug-table th,.debug-table td{border-bottom:1px solid #e1e7ef;padding:7px;text-align:right;white-space:nowrap}.debug-table th:first-child,.debug-table td:first-child{text-align:left}.debug-table tr.selected{background:#ecfdf3}.debug-table tr.gold-row{box-shadow:inset 3px 0 0 #f7c948}
-.details{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;min-height:0}.panel h2{font-size:14px;margin:0 0 8px}pre{margin:0;max-height:110px;overflow:auto;white-space:pre-wrap;color:#667085;font-size:12px}
+.boss-section{border:1px solid #e1e7ef;border-radius:6px;padding:10px;margin-top:10px;background:#fbfcfe}.boss-section h3{font-size:14px;margin:0 0 8px}.event-badge{display:inline-block;border-radius:999px;padding:2px 8px;background:#eef4ff;color:#2563eb}.sequence-pill{display:inline-block;border:1px solid #d7dde5;border-radius:999px;padding:2px 8px;background:#fff;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -61,14 +61,14 @@ textarea{height:300px;resize:vertical;border:1px solid #d7dde5;border-radius:6px
     <div class="row five"><button id="sample1">15x15 模板</button><button id="sample2">test 示例</button><button id="sample3">3x3 示例</button><button id="loadJson">加载</button><button id="validate">校验</button></div>
     <label class="label"><span>算法</span><select id="algorithm"><option value="smart">完整探险 Smart</option><option value="dijkstra">Reward + Dijkstra 路由</option><option value="astar">Reward + A* 路由</option><option value="branch_bound">Reward + 分支限界路由</option><option value="divide_conquer">Reward + 分治路由</option><option value="greedy">3x3 实时贪心</option><option value="resource_pickup">3x3 资源贪心</option></select></label>
     <div class="row five"><button id="run">运行</button><button id="pause">暂停</button><button id="prev">上一步</button><button id="step">单步</button><button id="reset">重置</button></div>
-    <button id="viewToggle">评分监控</button>
+    <div class="row"><button id="viewBoard" class="active">迷宫视图</button><button id="viewScore">评分监控</button><button id="viewBoss">Boss事件</button></div>
     <label class="label"><span>速度</span><input id="speed" type="range" min="80" max="1200" value="360"></label>
   </section>
   <section class="main">
     <div class="stats"><div class="stat"><span>资源</span><strong id="resource">0</strong></div><div class="stat"><span>步数</span><strong id="steps">0</strong></div><div class="stat"><span>比值</span><strong id="ratio">0.00</strong></div><div class="stat"><span>状态</span><strong id="state">待运行</strong></div></div>
     <div id="boardView" class="board-wrap"><div id="board"></div></div>
     <div id="monitorView" class="monitor hidden"><div id="debugSummary"></div><div id="debugDiagnosis" class="diagnosis">暂无评分数据</div><div id="debugTable"></div></div>
-    <div class="details"><section class="panel"><h2>Boss</h2><pre id="bossInfo">-</pre></section><section class="panel"><h2>事件</h2><pre id="eventInfo">-</pre></section></div>
+    <div id="bossEventView" class="monitor hidden"><div id="bossEventSummary"></div><div id="bossEventTimeline"></div><div id="bossEventTable"></div></div>
   </section>
 </main>
 )HTML") + LR"HTML(
@@ -77,8 +77,8 @@ const sample1=`{"maze":[["#","#","#","#","#","#","#","#","#","#","#","S","#","#"
 const sample2=`{"maze":[["#","S","#","#","#","#","#","#","#","#","#"],["#"," ","#"," "," "," "," "," "," "," ","#"],["#"," ","#","#","#"," ","#"," ","#","#","#"],["#"," ","#"," "," "," ","#"," ","#","G","#"],["#"," ","#"," ","#"," ","#"," ","#"," ","#"],["#"," ","#"," ","#"," ","#"," "," "," ","E"],["#","B","#"," ","#","#","#"," ","#","#","#"],["#"," "," "," "," "," ","#"," "," ","T","#"],["#"," ","#","#","#","#","#","#","#","G","#"],["#"," ","#"," "," "," ","G","T"," ","T","#"],["#","#","#","#","#","#","#","#","#","#","#"]],"B":[13,18,19,14],"PlayerSkills":[[4,1],[3,2],[5,2],[9,4],[2,0]]}`;
 const sample3=`{"case_id":2,"grid":[[".","T","G"],[".","P","T"],[".","T","G"]]}`;
 )HTML" + LR"HTML(
-const $=id=>document.getElementById(id);let maze=null,result=null,idx=0,timer=null,mazeSignature="",monitorMode=false,requestSeq=1;const pendingRequests=new Map(),resultCache=new Map();
-const renderState={boardKey:"",cells:[],result:null,preview:null,lit:new Set(),litLimit:-1,path:new Set(),pathLimit:-1,detailsResult:undefined};
+const $=id=>document.getElementById(id);let maze=null,result=null,idx=0,timer=null,mazeSignature="",viewMode="board",requestSeq=1;const pendingRequests=new Map(),resultCache=new Map();
+const renderState={boardKey:"",cells:[],result:null,preview:null,lit:new Set(),litLimit:-1,path:new Set(),pathLimit:-1,bossEventResult:undefined};
 function setState(s){$("state").textContent=s}
 function tileClass(t){return t=="#"?"wall":t=="S"||t=="P"?"start":t=="E"?"exit":t=="G"?"gold":t=="T"?"trap":t=="B"?"boss":"road"}
 function fmt(v,d=2){return Number.isFinite(Number(v))?Number(v).toFixed(d):"-"}
@@ -89,7 +89,7 @@ function visibleCellsAt(f){return cellsAround(f?{row:f.row,col:f.col}:null)}
 function parseInputMaze(){const input=$("jsonInput").value.trim();if(!input)throw new Error("请输入任务 JSON");const data=JSON.parse(input);const grid=Array.isArray(data.maze)?data.maze:data.grid;if(!Array.isArray(grid)||!Array.isArray(grid[0]))throw new Error("JSON 缺少 maze 或 grid 二维数组");return {input,data,grid,signature:JSON.stringify(grid)}}
 // 重置逐帧前缀缓存，避免切换算法、重置或回退时复用旧路径状态。
 function resetFrameCaches(){renderState.result=null;renderState.preview=null;renderState.lit=new Set();renderState.litLimit=-1;renderState.path=new Set();renderState.pathLimit=-1}
-function applyMazeData(data,signature){const changed=signature!==mazeSignature;if(changed){resultCache.clear();result=null;idx=0;renderState.boardKey="";renderState.cells=[];renderState.detailsResult=undefined;resetFrameCaches()}maze=Array.isArray(data.maze)?data.maze:data.grid;mazeSignature=signature;return changed}
+function applyMazeData(data,signature){const changed=signature!==mazeSignature;if(changed){resultCache.clear();result=null;idx=0;renderState.boardKey="";renderState.cells=[];renderState.bossEventResult=undefined;resetFrameCaches()}maze=Array.isArray(data.maze)?data.maze:data.grid;mazeSignature=signature;return changed}
 function call(name,...args){const id=requestSeq++;setState("运行中");return new Promise((resolve,reject)=>{pendingRequests.set(id,{resolve,reject});chrome.webview.postMessage({id,name,args})})}
 chrome.webview.addEventListener("message",event=>{const msg=event.data||{},pending=pendingRequests.get(msg.id);if(!pending)return;pendingRequests.delete(msg.id);if(msg.ok)pending.resolve(msg.result);else pending.reject(new Error(msg.error||"运行失败"))});
 // 棋盘格只在迷宫变化时创建；播放过程中只更新已有格子的 class 和文字。
@@ -114,12 +114,26 @@ if(!preview){for(let i=renderState.litLimit+1;i<=limit;i++)for(const c of cellsA
 for(let i=renderState.pathLimit+1;i<=limit;i++)renderState.path.add(`${path[i].row},${path[i].col}`);
 renderState.pathLimit=limit
 }
-function updateDetails(){
-if(renderState.detailsResult===result)return;
-renderState.detailsResult=result;
-$("bossInfo").textContent=JSON.stringify(result?.boss??{},null,2);
-$("eventInfo").textContent=JSON.stringify(result?.greedy_rounds??result?.events??[],null,2)
+)HTML" + LR"HTML(
+function esc(v){return String(v??"-").replace(/[&<>"]/g,s=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[s]))}
+function seqText(seq){return Array.isArray(seq)&&seq.length?seq.map(x=>x<0?"等待":`技能${x}`).join(" -> "):"-"}
+function sameSeq(a,b){return Array.isArray(a)&&Array.isArray(b)&&a.length==b.length&&a.every((v,i)=>v==b[i])}
+function currentBossResult(){return result?.boss||(result?.events||[]).find(e=>e.result)?.result||null}
+function bossEvents(){return (result?.events||[]).filter(e=>String(e.type||"").startsWith("boss"))}
+function bossEventName(t){return t=="boss"?"Boss胜利":t=="boss_revive"?"Boss失败复活":t=="boss_game_over"?"Boss失败结束":t||"-"}
+function drawBossEvents(){
+if(renderState.bossEventResult===result)return;
+renderState.bossEventResult=result;
+const boss=currentBossResult(),events=bossEvents(),attempts=boss?.attempts||[],attempt=attempts.length?attempts[attempts.length-1]:null,phases=boss?.phases||attempt?.phases||[];
+if(!boss&&!events.length){$("bossEventSummary").innerHTML="";$("bossEventTimeline").innerHTML='<div class="diagnosis">暂无 Boss 事件。运行包含 Boss 的迷宫后，这里会展示触发事件和技能选择。</div>';$("bossEventTable").innerHTML="";return}
+$("bossEventSummary").innerHTML=`<div class="debug-grid"><div><span>Boss结果</span><strong>${boss?.ok?"成功":"失败"}</strong></div><div><span>算法</span><strong>${esc(boss?.algorithm||"-")}</strong></div><div><span>回合</span><strong>${boss?.turns??"-"}/${boss?.minRounds??"-"}</strong></div><div><span>限制内</span><strong>${boss?.withinMinRounds===false?"否":"是"}</strong></div><div><span>复活金币</span><strong>${boss?.CoinConsumption??"-"}</strong></div><div><span>阶段数</span><strong>${phases.length}</strong></div></div>`;
+const eventRows=events.map(e=>`<tr><td>${e.step??"-"}</td><td><span class="event-badge">${esc(bossEventName(e.type))}</span></td><td>${e.reviveCost??""}</td><td>${e.result?.turns??""}</td><td>${e.result?.withinMinRounds===false?"否":"是"}</td></tr>`).join("");
+$("bossEventTimeline").innerHTML=`<section class="boss-section"><h3>触发事件</h3><table class="debug-table"><thead><tr><th>步数</th><th>事件</th><th>复活消耗</th><th>Boss回合</th><th>限制内</th></tr></thead><tbody>${eventRows||'<tr><td colspan="5">暂无触发事件</td></tr>'}</tbody></table></section>`;
+const blocks=phases.map(p=>{const rows=[...(p.candidateScores||[])].slice(0,8).map(c=>`<tr class="${sameSeq(c.sequence,p.sequence)?"selected":""}"><td>${sameSeq(c.sequence,p.sequence)?"*":""}</td><td><span class="sequence-pill">${esc(seqText(c.sequence))}</span></td><td>${c.turns??"-"}</td><td>${c.lightScore??"-"}</td><td>${c.remainingTurnsAfter??"-"}</td><td>${c.remainingUnknownBossCount??"-"}</td><td>${c.cooldownCostAfter??"-"}</td><td>${c.readyDamageAfter??"-"}</td></tr>`).join("");return `<section class="boss-section"><h3>Boss ${p.bossIndex??"-"} HP ${p.revealedHp??"-"}</h3><div class="diagnosis">选中序列：<span class="sequence-pill">${esc(seqText(p.sequence))}</span>，回合 ${p.turns??"-"}，lightScore ${p.lightScore??"-"}，原因：${esc(p.selectionReason||"-")}</div><table class="debug-table"><thead><tr><th></th><th>候选技能序列</th><th>turns</th><th>lightScore</th><th>剩余回合</th><th>未知Boss</th><th>冷却成本</th><th>可用伤害</th></tr></thead><tbody>${rows||'<tr><td colspan="8">无候选记录</td></tr>'}</tbody></table></section>`}).join("");
+$("bossEventTable").innerHTML=blocks||'<div class="diagnosis">没有 Boss phase 记录。</div>'
 }
+function setView(mode){viewMode=mode;$("boardView").classList.toggle("hidden",mode!="board");$("monitorView").classList.toggle("hidden",mode!="score");$("bossEventView").classList.toggle("hidden",mode!="boss");$("viewBoard").classList.toggle("active",mode=="board");$("viewScore").classList.toggle("active",mode=="score");$("viewBoss").classList.toggle("active",mode=="boss");draw()}
+)HTML" + LR"HTML(
 function draw(){
 if(!maze)return;
 ensureBoard();
@@ -146,8 +160,8 @@ if(d.textContent!==text)d.textContent=text
 $("resource").textContent=f?.resource??result?.resource??0;
 $("steps").textContent=f?.step??result?.steps??0;
 $("ratio").textContent=Number(result?.score_ratio??0).toFixed(2);
-updateDetails();
-if(monitorMode)drawDebug()
+if(viewMode=="score")drawDebug();
+if(viewMode=="boss")drawBossEvents()
 }
 )HTML" + LR"HTML(
 function analyzeDebug(d,f,visible){
@@ -180,8 +194,10 @@ $("sample1").onclick=()=>loadSample(sample1);
 $("sample2").onclick=()=>loadSample(sample2);
 $("sample3").onclick=()=>{$("algorithm").value="resource_pickup";loadSample(sample3)};
 $("loadJson").onclick=()=>{try{loadInputJson()}catch(e){setState(e.message)}};
-$("validate").onclick=async()=>{try{const parsed=parseInputMaze();const out=Array.isArray(parsed.data.grid)?await call("RunResourcePickup",parsed.input):await call("ValidateMaze",parsed.input);$("eventInfo").textContent=JSON.stringify(out,null,2);setState(out.ok?"校验通过":"校验失败")}catch(e){setState(e.message)}};
-$("viewToggle").onclick=()=>{monitorMode=!monitorMode;$("boardView").classList.toggle("hidden",monitorMode);$("monitorView").classList.toggle("hidden",!monitorMode);$("viewToggle").textContent=monitorMode?"迷宫视图":"评分监控";draw()};
+$("validate").onclick=async()=>{try{const parsed=parseInputMaze();const out=Array.isArray(parsed.data.grid)?await call("RunResourcePickup",parsed.input):await call("ValidateMaze",parsed.input);setView("boss");$("bossEventSummary").innerHTML="";$("bossEventTimeline").innerHTML=`<div class="diagnosis"><pre>${esc(JSON.stringify(out,null,2))}</pre></div>`;$("bossEventTable").innerHTML="";setState(out.ok?"校验通过":"校验失败")}catch(e){setState(e.message)}};
+$("viewBoard").onclick=()=>setView("board");
+$("viewScore").onclick=()=>setView("score");
+$("viewBoss").onclick=()=>setView("boss");
 $("algorithm").onchange=()=>{stop();result=resultCache.get($("algorithm").value)||null;idx=0;draw();setState(result?"已切换到缓存结果":"已切换算法")};
 $("run").onclick=()=>run().catch(e=>{stop();setState(e.message)});$("pause").onclick=()=>{stop();setState("已暂停")};$("prev").onclick=()=>{stop();if(result?.frames?.length){idx=Math.max(idx-1,0);draw()}setState("上一步")};$("step").onclick=()=>{stop();next();setState("单步")};$("reset").onclick=()=>{stop();idx=0;draw();setState("已重置")};$("speed").oninput=()=>{if(timer)play()};
 $("jsonInput").value=sample1;loadInputJson();

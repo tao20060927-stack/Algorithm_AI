@@ -57,25 +57,38 @@ public:
      */
     GreedyRunResult run()
     {
+        // 初始化：真实坐标从迷宫起点开始，局部坐标始终以 (0,0) 为原点。
+        // 这种设计保证了 AI 不知道自己在迷宫中的绝对位置，只依赖 3x3 视野做决策。
         Position realCurrent = maze_.start;
         Position localCurrent{0, 0};
+        // 建立局部坐标和真实坐标的双向映射，供前端渲染和路径输出使用。
         localToReal_[localCurrent] = realCurrent;
         realToLocal_[realCurrent] = localCurrent;
 
         GreedyRunResult result;
+        // 路径以真实坐标起点开始。
         result.path.push_back(realCurrent);
+        // 步数上限设为网格单元数的 4 倍，防止死循环耗尽内存。
+        // 正常探索极少达到此上限，仅作为安全网。
         const int maxSteps = static_cast<int>(maze_.grid.size() * maze_.grid[0].size() * 4);
 
+        // 主循环：每步执行 观察→结算→评分→行走 的决策流水线。
         for (int step = 0; step < maxSteps && realCurrent != maze_.exit; ++step) {
+            // 第一步：以真实坐标为中心扫描 3x3 视野，写入局部记忆。
             updateKnownMap(realCurrent, localCurrent);
+            // 第二步：结算当前格资源（金币、陷阱），标记访问状态。
             applyCurrentCell(localCurrent);
+            // 第三步：更新地图姿势估计器，估算已探索比例和未知区域分布。
             poseEstimator_.update(localMap_, localCurrent);
+            // 第四步：平滑更新 alpha 参数，影响 reward 公式中信息项和资源项的权重平衡。
             state_.alphaSmooth = evaluator_.updateAlphaSmooth(state_.alphaSmooth, localMap_, poseEstimator_);
+            // 处理 Boss 战导致的特殊状态：复活或游戏结束。
             if (pendingRevive_ || gameOver_) {
                 GreedyStepDebug stepDebug;
                 fillStatusDebug(localCurrent, realCurrent, static_cast<int>(result.path.size()) - 1,
                                 pendingRevive_ ? "boss-revive-reset" : "boss-game-over", stepDebug);
                 result.debugSteps.push_back(std::move(stepDebug));
+                // Boss 战失败但资源够复活：重置到起点，清空当前目标，继续探索。
                 if (pendingRevive_) {
                     pendingRevive_ = false;
                     localCurrent = {0, 0};
@@ -84,21 +97,27 @@ public:
                     currentTargetScore_ = -1e18;
                     currentTargetFromPocket_ = false;
                     result.path.push_back(realCurrent);
-                    continue;
+                    continue;  // 跳过本帧后续逻辑，从起点重新开始
                 }
+                // Boss 战失败且资源不足：标记游戏结束并退出循环。
                 result.gameOver = true;
                 break;
             }
 
+            // 第五步：通过 reward 公式选出最佳目标及其路径。
             GreedyStepDebug stepDebug;
             const auto selectedPath = selectBestPath(localCurrent, realCurrent, static_cast<int>(result.path.size()) - 1,
                                                      stepDebug);
             result.debugSteps.push_back(std::move(stepDebug));
+            // 若选出的路径长度为 1（仅包含当前位置），说明无路可走，终止。
             if (selectedPath.size() <= 1) break;
 
+            // 第六步：只走路径的下一步（index 1），实现"走一步、重规划一步"的实时策略。
             const Position nextLocal = selectedPath[1];
             const auto it = localToReal_.find(nextLocal);
+            // 若下一格在映射中找不到（通常不会发生），安全终止。
             if (it == localToReal_.end()) break;
+            // 更新局部坐标和真实坐标，并将下一步加入输出路径。
             localCurrent = nextLocal;
             realCurrent = it->second;
             result.path.push_back(realCurrent);
@@ -155,30 +174,44 @@ private:
      */
     void updateKnownMap(Position realCurrent, Position localCurrent)
     {
+        // 以当前位置为中心的 3x3 视野扫描：dr 和 dc 各取 -1, 0, 1，
+        // 共扫描 9 个格子，模拟 AI 每步能看到的局部范围。
         for (int dr = -1; dr <= 1; ++dr) {
             for (int dc = -1; dc <= 1; ++dc) {
+                // 根据当前真实坐标和相对偏移计算视野格的真实坐标，
+                // 同时根据局部坐标和相同偏移计算对应的局部记忆坐标。
                 const Position realPos{realCurrent.first + dr, realCurrent.second + dc};
                 const Position localPos{localCurrent.first + dr, localCurrent.second + dc};
+                // 真实坐标越界时标记为地图外部，后续 reward 和路由均不会把该格作为候选。
                 if (!realInBounds(realPos.first, realPos.second)) {
                     localMap_.setOutside(localPos);
                     continue;
                 }
 
+                // 从真实迷宫读取本格原始 tile，用于写入局部记忆。
                 std::string tile = maze_.grid[realPos.first][realPos.second];
                 const int bossIndex = bossIndexAt(localPos);
+                // 若该格是 Boss 且已被击败，则视为空地，
+                // 这样后续路由和 reward 才不会把已击败 Boss 当作障碍物。
                 if (tile == "B" && bossIndex >= 0 && defeatedBosses_[bossIndex]) {
                     tile = " ";
                 }
 
+                // 将本格 tile 写入局部记忆地图，后续所有决策（reward、路由、候选生成）
+                // 都只读取 localMap_，不会再看真实迷宫。
                 localMap_.setObserved(localPos, tile);
+                // 维护局部坐标与真实坐标的双向映射，供前端展示和路径输出使用。
                 localToReal_[localPos] = realPos;
                 realToLocal_[realPos] = localPos;
 
+                // 首次发现 Boss 时注册到已知列表，并标记其邻接触发区，
+                // 方便后续 triggerAdjacentBoss 检测进入触发范围。
                 if (tile == "B" && bossIndex < 0) {
                     knownBosses_.push_back(localPos);
                     defeatedBosses_.push_back(false);
                     localMap_.markBossTriggers(localPos);
                 }
+                // 记录出口局部坐标，供 shouldGoExit 和 buildContext 判断何时停止探索。
                 if (tile == "E") localExit_ = localPos;
             }
         }
@@ -195,16 +228,22 @@ private:
      */
     void applyCurrentCell(Position localCurrent)
     {
+        // 将当前格标记为已访问，后续候选生成会排除已访问格，避免重复探索浪费步数。
         localMap_.markVisited(localCurrent);
+        // 步数为 0 时 AI 仍站在起点，此时不结算资源，避免把起点格误判为收集。
+        // 金币收集：只结算一次，通过 isCollected 标志防止重复拾取。
         if (state_.steps > 0 && localMap_.tile(localCurrent) == "G" && !localMap_.isCollected(localCurrent)) {
             state_.resource += kGoldValue;
-            ++state_.collectedGold;
+            ++state_.collectedGold;          // 记录拾取金币数量，供 shouldGoExit 做停止探索判断
             localMap_.markCollected(localCurrent);
+        // 陷阱触发：每次触发扣除资源（kTrapValue 为负值），同样只触发一次。
         } else if (state_.steps > 0 && localMap_.tile(localCurrent) == "T" && !localMap_.isTriggered(localCurrent)) {
             state_.resource += kTrapValue;
             localMap_.markTriggered(localCurrent);
         }
+        // 检查是否进入 Boss 邻接触发区，触发 Boss 战斗逻辑。
         triggerAdjacentBoss(localCurrent);
+        // 每走一步累加步数，用于 R/L 比率计算和步数上限保护。
         ++state_.steps;
     }
 
@@ -236,16 +275,23 @@ private:
      */
     void triggerAdjacentBoss(Position localCurrent)
     {
+        // 遍历所有已知 Boss，检查当前格是否与 Boss 曼哈顿距离为 1（正邻接）。
         for (int i = 0; i < static_cast<int>(knownBosses_.size()); ++i) {
             const int distance = std::abs(localCurrent.first - knownBosses_[i].first) +
                                  std::abs(localCurrent.second - knownBosses_[i].second);
+            // 只有距离恰好为 1 且该 Boss 尚未被击败时才触发战斗，
+            // 防止同一 Boss 被重复触发或隔墙误触发。
             if (distance == 1 && !defeatedBosses_[i]) {
+                // 若 boss 战预计算可获胜，直接标记击败并清除 Boss 本体阻挡。
                 if (bossBattleCanWin_) {
                     defeatedBosses_[i] = true;
                     localMap_.clearBoss(knownBosses_[i]);
+                // 若不可获胜但当前资源足够支付复活金币，扣除金币并设置待复活标志，
+                // 下一帧 run() 会检测 pendingRevive_ 并传送回起点。
                 } else if (state_.resource >= coinConsumption_) {
                     state_.resource -= coinConsumption_;
                     pendingRevive_ = true;
+                // 资源不足且 Boss 战无法获胜则游戏结束。
                 } else {
                     gameOver_ = true;
                 }
@@ -290,11 +336,17 @@ private:
     std::vector<Position> candidateTargets(Position localCurrent) const
     {
         std::vector<Position> targets;
+        // 遍历局部记忆中所有已观察到的格子作为候选。
         for (const auto &pos : localMap_.observedPositions()) {
+            // 排除当前格自身：AI 已站在上面，不需要再走过去。
+            // 排除出口：出口由 shouldGoExit 单独决策，不参与 reward 评分竞争。
+            // 排除已访问格：已访问格资源已结算，重复访问无收益。
+            // 排除不可通行格：墙和未探索区域不参与候选生成。
             if (pos == localCurrent || pos == localExit_ || localMap_.isVisited(pos) ||
                 !localMap_.isWalkableForPlanning(pos)) {
                 continue;
             }
+            // 即使满足上述条件，若从当前位置不可达（被墙隔开），也不作为候选。
             if (routePath(localCurrent, pos).empty()) continue;
             targets.push_back(pos);
         }
@@ -442,13 +494,18 @@ private:
      */
     std::vector<Position> routePath(Position start, Position target) const
     {
+        // 根据配置的路由算法选择不同的寻路实现。所有算法都只读取局部记忆地图 localMap_，
+        // 因此不会偷看完整迷宫，保证公平性。
+        // "greedy" 和 "smart" 的 reward 版本路由复用同一个最短路径实现。
         if (routeAlgorithm_ == "greedy" || routeAlgorithm_ == "smart") {
             return evaluator_.shortestPathOnKnownMap(start, target, localMap_);
         }
+        // 以下四种是独立的图搜索算法变体，各自有不同的最优性保证和性能特征。
         if (routeAlgorithm_ == "dijkstra") return dijkstraPath(localMap_, start, target);
         if (routeAlgorithm_ == "astar") return astarPath(localMap_, start, target);
         if (routeAlgorithm_ == "branch_bound") return branchBoundPath(localMap_, start, target);
         if (routeAlgorithm_ == "divide_conquer") return divideConquerPath(localMap_, start, target);
+        // 不支持的路由算法名直接抛异常，避免静默回退导致行为不一致。
         throw std::runtime_error("unsupported route algorithm: " + routeAlgorithm_);
     }
 
@@ -464,51 +521,74 @@ private:
     std::vector<Position> selectBestPath(Position localCurrent, Position realCurrent, int step,
                                          GreedyStepDebug &debug)
     {
+        // 构建评分上下文：包含当前状态、出口路径和 Boss 门控区域信息。
         const PathValueContext context = buildContext(localCurrent);
+        // 填充本步调试信息的基础字段。
         debug.step = step;
         debug.localCurrent = localCurrent;
         debug.realCurrent = realCurrent;
         debug.alpha = state_.alphaSmooth;
+        // 已观察比例 = 已观察格子数 / 225（15x15 迷宫总格数），衡量探索进度。
         debug.observedRatio = static_cast<double>(poseEstimator_.estimatedObservedCount()) / 225.0;
+        // qEff 是当前状态下每步的平均资源效率，用于后续绕路代价比较。
         debug.qEff = evaluator_.computeQEff(context, localMap_);
-        debug.decision = "no-candidate";
+        debug.decision = "no-candidate";  // 默认决策，后续会被覆盖
+        // 记录所有被过滤掉的格子及原因，供前端调试面板展示。
         recordRejectedTargets(localCurrent, debug);
         double bestScore = -1e18;
-        bool hasWorthwhileTarget = false;
-        bool hasNonNegativeTarget = false;
+        bool hasWorthwhileTarget = false;     // 是否存在 reward 超过 qEff * 绕路代价的目标
+        bool hasNonNegativeTarget = false;    // 是否存在走完后资源不为负的目标
+        // 根据出口是否已知选择面积上限：已知出口时用更保守的 knownExitAreaCap，
+        // 因为此时 AI 已经有退路，不应过度追求未知区域的探索价值。
         const double activeAreaCap = context.exitPath.empty() ? static_cast<double>(evaluator_.parameters().areaMax)
                                                               : evaluator_.parameters().knownExitAreaCap;
         const int debugAreaCap = std::max(1, static_cast<int>(std::ceil(activeAreaCap)));
         Position bestTarget = kInvalid;
         std::vector<Position> bestPath;
-        std::vector<ClosedSingletonGateCandidate> gateCandidates;
-
+        std::vector<ClosedSingletonGateCandidate> gateCandidates;  // 供闭单例门控后处理使用
+        // 获取当前局部地图中所有可探索候选目标。
         const auto targets = candidateTargets(localCurrent);
+
+        // 对每个候选目标独立评分，构建候选列表和门控请求数据。
         for (const auto &target : targets) {
+            // 对该候选目标计算从当前位置出发的路径。
             auto path = routePath(localCurrent, target);
+            // 核心评分：evaluate 综合路径长度、资源变化、信息增益等因素给出一个标量分数。
             const double score = evaluator_.evaluate(path, target, context, localMap_, poseEstimator_);
+            // 构建该候选的调试信息，供前端监控页展示每个候选的评分分解。
             GreedyCandidateDebug item;
             item.localTarget = target;
             const auto realIt = localToReal_.find(target);
             item.realTarget = realIt == localToReal_.end() ? kInvalid : realIt->second;
             item.tile = localMap_.tile(target);
             item.score = score;
+            // deltaR：沿路径走到目标后，资源的净变化（金币收入 + 陷阱扣减）。
             item.deltaR = evaluator_.pathResourceDelta(path, localMap_);
+            // Boss 门控区域 + 未知延伸触碰地图边缘时，强制使用 areaMax 评估信息增益，
+            // 因为这类区域的实际面积可能远超当前视野所能估计的范围。
             const bool forceAreaMax = context.bossGatedAreaMaxTargets.count(target) > 0 &&
                                       poseEstimator_.unknownExtensionTouchesMazeEdge(target, localMap_);
+            // informationProxy：走到目标后预计能观察到的新格子数量，是探索价值的核心度量。
             item.informationProxy =
                 evaluator_.informationProxy(target, localMap_, poseEstimator_, activeAreaCap, forceAreaMax);
+            // tailGain：到达目标后，从目标出发的后续期望收益，体现远期价值。
             item.tailGain = evaluator_.futureGainMarginal(target, path, localMap_);
             item.qEff = debug.qEff;
+            // pathLength：路径步数 = 路径长度 - 1（不含起点）。
             item.pathLength = path.empty() ? 0 : static_cast<int>(path.size()) - 1;
+            // projectedResource：到达目标后的预计剩余资源。
             item.projectedResource = state_.resource + item.deltaR;
+            // marginPenalty：若预计资源非负，计算当前边界惩罚，防止资源在阈值附近过度冒险。
             item.marginPenalty = item.projectedResource < 0 ? 0.0 : evaluator_.marginPenalty(item.projectedResource);
+            // 记录是否存在非负资源候选，供 shouldGoExit 判断。
             hasNonNegativeTarget = hasNonNegativeTarget || (!path.empty() && item.projectedResource >= 0);
+            // 统计从目标位置可接触的未知连通分量大小，用于评估探索潜力。
             item.unknownComponents = forceAreaMax
                                          ? std::vector<int>{evaluator_.parameters().bossEdgeAreaBonus}
                                          : poseEstimator_.unknownComponentSizesTouchingView(target, localMap_, debugAreaCap);
             item.unknownComponentSum = 0;
             for (const int size : item.unknownComponents) item.unknownComponentSum += size;
+            // 为闭单例门控后处理准备数据：复制关键字段到 gateCandidate 结构。
             ClosedSingletonGateCandidate gateCandidate;
             gateCandidate.target = target;
             gateCandidate.tile = item.tile;
@@ -522,6 +602,8 @@ private:
             gateCandidate.unknownComponents = item.unknownComponents;
             gateCandidate.path = path;
             gateCandidates.push_back(std::move(gateCandidate));
+            // 计算 hasWorthwhileTarget：候选的 reward 是否超过走到目标再绕路去出口的额外代价。
+            // detourCost = 当前位置到目标的步数 + 目标到出口的步数 - 当前位置到出口的步数。
             if (!context.exitPath.empty() && context.exitPath.size() > 1) {
                 const auto targetToExit = routePath(target, localExit_);
                 if (!targetToExit.empty()) {
@@ -531,6 +613,7 @@ private:
                 }
             }
             debug.candidates.push_back(item);
+            // 维护本轮最佳候选，用于 switchMargin 目标切换判断。
             if (score > bestScore) {
                 bestScore = score;
                 bestTarget = target;
@@ -538,6 +621,8 @@ private:
             }
         }
 
+        // 闭单例门控后处理：在候选评分完成后，检测并处理"封闭口袋只有一个入口"的特殊场景。
+        // 这种场景下普通 reward 可能低估口袋内部的价值，门控逻辑会提升口袋内目标的优先级。
         ClosedSingletonGateRequest gateRequest;
         gateRequest.localCurrent = localCurrent;
         gateRequest.localExit = localExit_;
@@ -547,14 +632,18 @@ private:
         gateRequest.evaluator = &evaluator_;
         gateRequest.candidates = gateCandidates;
         const auto gateResult = applyClosedSingletonLookaheadGate(gateRequest);
-        debug.closedSingletonGate = gateResult.debug;
+        debug.closedSingletonGate = gateResult.debug;  // 门控调试信息供前端展示
+        // 门控有选择结果时覆盖最佳候选，重算 hasWorthwhileTarget。
         if (gateResult.hasSelection) {
             bestTarget = gateResult.selectedTarget;
             bestPath = gateResult.selectedPath;
             bestScore = gateResult.selectedScore;
+            // 门控改变了选择时，需要重新评估 hasWorthwhileTarget，
+            // 排除被门控替换掉的候选 A，避免 shouldGoExit 误判。
             if (gateResult.changed && !context.exitPath.empty() && context.exitPath.size() > 1) {
                 hasWorthwhileTarget = false;
                 for (const auto &candidate : gateCandidates) {
+                    // 跳过被门控覆盖的候选 A 和无效候选。
                     if (candidate.target == gateResult.debug.candidateA || candidate.score <= -1e17 ||
                         candidate.path.empty()) {
                         continue;
@@ -568,6 +657,8 @@ private:
             }
         }
 
+        // 决策优先级 1：停止探索，转向出口。
+        // shouldGoExit 综合 tau 阈值、资源效率、绕路代价判断是否该收手。
         if (shouldGoExit(context, bestScore, hasWorthwhileTarget, hasNonNegativeTarget)) {
             currentTarget_ = localExit_;
             currentTargetScore_ = bestScore;
@@ -579,27 +670,36 @@ private:
             return context.exitPath;
         }
 
+        // 决策优先级 2：检查是否有正在持有的目标（上一帧选择的目标尚未到达）。
+        // 目标保持机制防止 AI 在相邻两个目标之间来回摇摆，提高路径稳定性。
         std::vector<Position> heldPath;
         double heldScore = -1e18;
+        // 持有目标仍然有效（未访问、可通行）时才计算其当前路径和分数。
         if (currentTarget_ != kInvalid && !localMap_.isVisited(currentTarget_) &&
             localMap_.isWalkableForPlanning(currentTarget_)) {
             heldPath = routePath(localCurrent, currentTarget_);
             heldScore = evaluator_.evaluate(heldPath, currentTarget_, context, localMap_, poseEstimator_);
         }
 
+        // 决策优先级 3：口袋优先目标选择。
+        // PocketAwareGreedy 识别"只有一个入口的区域"，若该区域内资源丰富，
+        // 则优先占领入口并清空内部，避免被其他目标分散注意力。
         auto pocketDecision =
             choosePocketFirstTarget(localCurrent, context, localMap_, poseEstimator_, evaluator_);
-        attachPocketRealPositions(pocketDecision.debug);
+        attachPocketRealPositions(pocketDecision.debug);  // 填充真实坐标供前端展示
         debug.pocket = pocketDecision.debug;
         if (pocketDecision.enabled && !pocketDecision.path.empty()) {
             currentTarget_ = pocketDecision.target;
             currentTargetScore_ = pocketDecision.score;
-            currentTargetFromPocket_ = true;
+            currentTargetFromPocket_ = true;  // 标记为目标来自口袋策略
             debug.decision = "pocket-first-target";
             markSelectedDebug(pocketDecision.target, debug);
             return pocketDecision.path;
         }
 
+        // 决策优先级 4：口袋激活后保持当前口袋目标。
+        // 即使本轮口袋策略未产生新目标，但只要上一帧选择来自口袋且目标仍可达，
+        // 就继续走，避免口袋清空中途切换目标。
         if (currentTargetFromPocket_ && !heldPath.empty()) {
             currentTargetScore_ = heldScore;
             debug.decision = "hold-pocket-target";
@@ -607,15 +707,20 @@ private:
             return heldPath;
         }
 
+        // 决策优先级 5：目标切换判定。
+        // switchMargin 是切换阈值，新目标分数必须比持有目标高出一个 margin 才切换，
+        // 防止在两个分数接近的目标之间反复横跳浪费步数。
         const double switchMargin = evaluator_.parameters().switchMargin;
         const bool shouldSwitch = !bestPath.empty() &&
                                   (heldPath.empty() || bestScore > heldScore + switchMargin);
+        // 持有目标仍有效且新目标不值得切换时，继续走持有目标。
         if (!heldPath.empty() && !shouldSwitch) {
             currentTargetScore_ = heldScore;
             debug.decision = "hold-target";
             markSelectedDebug(currentTarget_, debug);
             return heldPath;
         }
+        // 新目标分数足够高（或没有持有目标），切换到新目标。
         if (!bestPath.empty()) {
             currentTarget_ = bestTarget;
             currentTargetScore_ = bestScore;
@@ -625,6 +730,8 @@ private:
             return bestPath;
         }
 
+        // 决策优先级 6：所有正常决策路径都失效时的兜底恢复。
+        // 清空目标状态，调用 fallbackPath 以信息增益为导向选一个脱困路径。
         currentTarget_ = kInvalid;
         currentTargetScore_ = -1e18;
         currentTargetFromPocket_ = false;
@@ -700,12 +807,22 @@ private:
     bool shouldGoExit(const PathValueContext &context, double bestScore, bool hasWorthwhileTarget,
                       bool hasNonNegativeTarget) const
     {
+        // 出口路径不存在或长度不足 2（即已在出口或紧邻出口），无法判断是否应走向出口。
         if (context.exitPath.empty() || context.exitPath.size() <= 1) return false;
+        // 当前资源为零但存在非负资源候选时禁止提前走出口：
+        // 此时走出口虽然安全，但放弃了一切翻盘可能，相当于主动认输。
         if (context.state.resource == 0 && hasNonNegativeTarget) return false;
+        // 计算当前资源效率 R/L（资源 / 步数），epsilon 防止除零。
         const double currentRatio =
             static_cast<double>(context.state.resource) / (context.state.steps + evaluator_.parameters().epsilon);
+        // 当前 R/L < 1 且金币收集不足 3 个时，只要还有候选目标就继续探索。
+        // 这是因为 maze 评分中金币权重高，过早走出口可能错过关键金币导致低分。
         if (currentRatio < 1.0 && context.state.collectedGold < 3 && bestScore > -1e17) return false;
+        // 若最佳候选的 reward 分数不超过阈值 tau，说明探索边际收益已耗尽，应转向出口。
         if (bestScore <= evaluator_.parameters().tau) return true;
+        // 即使 bestScore 超过 tau，还需检查是否存在 reward 足以覆盖绕路代价的目标。
+        // hasWorthwhileTarget 在 selectBestPath 中已计算，衡量 score > qEff * detourCost。
+        // 若没有，说明所有高 reward 目标绕路步数太多，不如直接去出口。
         return !hasWorthwhileTarget;
     }
 
@@ -721,32 +838,42 @@ private:
      */
     std::vector<Position> fallbackPath(Position localCurrent) const
     {
+        // 计算当前 R/L 比率，与 shouldGoExit 使用相同逻辑判断是否延迟走出口。
         const double currentRatio =
             static_cast<double>(state_.resource) / (state_.steps + evaluator_.parameters().epsilon);
+        // 延迟出口：R/L < 1 且金币不足 3 时，应优先探索而非直接去出口。
         const bool delayExit = currentRatio < 1.0 && state_.collectedGold < 3;
+        // 出口已知且允许走出口时，直接返回出口路径作为兜底方案。
         if (localExit_ != kInvalid && !delayExit) {
             const auto exitPath = routePath(localCurrent, localExit_);
             if (!exitPath.empty()) return exitPath;
         }
 
+        // 没有正常候选时，退而求其次：选择能带来最多信息增益的目标。
+        // informationProxy 估算从目标位置能观察到多少新未知区域。
         std::vector<Position> bestPath;
         double bestInfo = -1.0;
         for (const auto &target : localMap_.observedPositions()) {
+            // 排除当前格；若延迟出口则也排除出口格，强制探索。
             if (target == localCurrent || (delayExit && target == localExit_) ||
                 !localMap_.isWalkableForPlanning(target)) {
                 continue;
             }
             auto path = routePath(localCurrent, target);
             if (path.empty()) continue;
+            // 根据出口是否已知选择不同的面积上限，控制信息代理的计算范围。
             const double activeAreaCap = localExit_ == kInvalid ? static_cast<double>(evaluator_.parameters().areaMax)
                                                                 : evaluator_.parameters().knownExitAreaCap;
             const double info = evaluator_.informationProxy(target, localMap_, poseEstimator_, activeAreaCap);
+            // 信息增益更高者优先；相同时选路径更短的，减少步数浪费。
             if (info > bestInfo || (info == bestInfo && (bestPath.empty() || path.size() < bestPath.size()))) {
                 bestInfo = info;
                 bestPath = std::move(path);
             }
         }
+        // 延迟出口期间若所有目标的信息增益都为零（已无新区域可探索），清空路径。
         if (delayExit && bestInfo <= 0.0) bestPath.clear();
+        // 最终兜底：一切探索路径都找不到时，只要出口已知就走出口。
         if (bestPath.empty() && localExit_ != kInvalid) {
             const auto exitPath = routePath(localCurrent, localExit_);
             if (!exitPath.empty()) return exitPath;

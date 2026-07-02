@@ -364,7 +364,11 @@ void MapPoseEstimator::initialize()
  */
 void MapPoseEstimator::update(const LocalKnownMap &localMap, Position localCurrent)
 {
+    // 获取当前已观察格列表，后续所有步骤都依赖此数据。
     const auto observed = localMap.observedPositions();
+    // ===== 阶段 1：出生边缘种子检测（仅首次调用时执行） =====
+    // 通过出生点周围 3x3 视野中的 outside（越界）格判断 AI 从迷宫哪条边进入。
+    // 例如：顶部有越界格 + 左边有越界格 → AI 出生在左上角。
     if (!maskSeeded_) {
         const auto outside = localMap.outsidePositions();
         const auto hasOutside = [&](Position pos) {
@@ -373,12 +377,15 @@ void MapPoseEstimator::update(const LocalKnownMap &localMap, Position localCurre
         const auto addHypothesis = [&](Position entry) {
             hypotheses_.push_back({entry, Direction::Down, 0.0, true});
         };
+        // 检测各方向是否有完整的一行/列越界格（以 3x3 的角格作为交叉判定）。
         const bool topOutside = hasOutside({-1, -1}) && hasOutside({-1, 0}) && hasOutside({-1, 1});
         const bool bottomOutside = hasOutside({1, -1}) && hasOutside({1, 0}) && hasOutside({1, 1});
         const bool leftOutside = hasOutside({-1, -1}) && hasOutside({0, -1}) && hasOutside({1, -1});
         const bool rightOutside = hasOutside({-1, 1}) && hasOutside({0, 1}) && hasOutside({1, 1});
 
         hypotheses_.clear();
+        // 根据越界方向组合，确定 seedKind_ 并生成候选入口假设。
+        // 角落情况（两个方向同时越界）：唯一确定入口位置。
         if (topOutside && leftOutside) {
             seedKind_ = MaskSeedKind::TopLeft;
             addHypothesis({0, 0});
@@ -391,6 +398,8 @@ void MapPoseEstimator::update(const LocalKnownMap &localMap, Position localCurre
         } else if (bottomOutside && rightOutside) {
             seedKind_ = MaskSeedKind::BottomRight;
             addHypothesis({kEstimatedSize - 1, kEstimatedSize - 1});
+        // 单边情况：只能确定在哪条边上，但不知道具体偏移量。
+        // 生成 col=1..13（或 row=1..13）的多个候选假设。
         } else if (topOutside) {
             seedKind_ = MaskSeedKind::Top;
             for (int col = 1; col < kEstimatedSize - 1; ++col) addHypothesis({0, col});
@@ -404,12 +413,14 @@ void MapPoseEstimator::update(const LocalKnownMap &localMap, Position localCurre
             seedKind_ = MaskSeedKind::Right;
             for (int row = 1; row < kEstimatedSize - 1; ++row) addHypothesis({row, kEstimatedSize - 1});
         } else {
+            // 无越界信息（出生点在迷宫内部）：默认入口在中心，掩码暂不启用。
             addHypothesis({kEstimatedSize / 2, kEstimatedSize / 2});
         }
         best_ = hypotheses_.front();
         maskSeeded_ = true;
     }
 
+    // ===== 阶段 2：计算已观察格的包围盒（局部坐标下的跨度） =====
     int minRow = 0;
     int maxRow = 0;
     int minCol = 0;
@@ -425,10 +436,14 @@ void MapPoseEstimator::update(const LocalKnownMap &localMap, Position localCurre
         }
     }
 
+    // ===== 阶段 3：用已观察格约束裁剪候选假设 =====
+    // hasFullHorizontal: 水平跨度 >= 15，说明已经看到迷宫完整宽度。
     const bool hasFullHorizontal = maxCol - minCol + 1 >= kEstimatedSize;
     const bool hasFullVertical = maxRow - minRow + 1 >= kEstimatedSize;
+    // canPrune: 跨度 >= 14 时，已可以排除不一致的偏移假设。
     const bool canPruneHorizontal = maxCol - minCol + 1 >= kEstimatedSize - 1;
     const bool canPruneVertical = maxRow - minRow + 1 >= kEstimatedSize - 1;
+    // 裁剪条件：Top/Bottom 边界需要水平跨度足够，Left/Right 需要垂直跨度足够。
     const bool canPruneHypotheses =
         ((seedKind_ == MaskSeedKind::Top || seedKind_ == MaskSeedKind::Bottom) && canPruneHorizontal) ||
         ((seedKind_ == MaskSeedKind::Left || seedKind_ == MaskSeedKind::Right) && canPruneVertical);
@@ -436,12 +451,16 @@ void MapPoseEstimator::update(const LocalKnownMap &localMap, Position localCurre
         std::vector<MapEmbeddingHypothesis> feasibleHypotheses;
         for (auto hypothesis : hypotheses_) {
             bool feasible = true;
+            // 检查 1：每个已观察格映射后必须在 15x15 范围内。
             for (const auto &pos : observed) {
                 const Position mapped = mapWithHypothesis(pos, hypothesis);
                 if (!insideEstimated(mapped)) {
                     feasible = false;
                     break;
                 }
+                // 检查 2：映射到 15x15 边界的格子，在局部地图中必须是墙。
+                // 因为迷宫的最外一圈是边界墙，如果局部看到的不是墙说明映射错误。
+                // 唯一例外：起点 S（pos=={0,0}）可以位于边界的入口位置。
                 const bool boundary = mapped.first == 0 || mapped.second == 0 || mapped.first == kEstimatedSize - 1 ||
                                       mapped.second == kEstimatedSize - 1;
                 const std::string tile = localMap.tile(pos);
@@ -452,6 +471,8 @@ void MapPoseEstimator::update(const LocalKnownMap &localMap, Position localCurre
                 }
             }
             if (!feasible) continue;
+            // 检查 3：outside 格映射后不能落在 15x15 范围内。
+            // outside 表示迷宫外部，如果在估计内部则假设矛盾。
             for (const auto &pos : localMap.outsidePositions()) {
                 if (insideEstimated(mapWithHypothesis(pos, hypothesis))) {
                     feasible = false;
@@ -460,20 +481,26 @@ void MapPoseEstimator::update(const LocalKnownMap &localMap, Position localCurre
             }
             if (feasible) feasibleHypotheses.push_back(hypothesis);
         }
+        // 只有至少保留一个可行假设时才更新；如果全部被排除则保留原假设。
         if (!feasibleHypotheses.empty()) {
             hypotheses_ = feasibleHypotheses;
             best_ = hypotheses_.front();
         }
     }
 
+    // ===== 阶段 4：掩码激活判定 =====
+    // 根据 seedKind_ 和当前观察跨度，决定是否启用 15x15 掩码裁剪。
     switch (seedKind_) {
     case MaskSeedKind::Top:
     case MaskSeedKind::Bottom:
+        // 顶部/底部边界：假设唯一 或 水平已满 15 格时激活。
         maskActive_ = hypotheses_.size() == 1 || hasFullHorizontal;
+        // 水平满 15 格后可以精确定位列偏移。
         if (hasFullHorizontal) best_.entry.second = -minCol;
         break;
     case MaskSeedKind::Left:
     case MaskSeedKind::Right:
+        // 左/右边界：假设唯一 或 垂直已满 15 格时激活。
         maskActive_ = hypotheses_.size() == 1 || hasFullVertical;
         if (hasFullVertical) best_.entry.first = -minRow;
         break;
@@ -481,22 +508,28 @@ void MapPoseEstimator::update(const LocalKnownMap &localMap, Position localCurre
     case MaskSeedKind::TopRight:
     case MaskSeedKind::BottomLeft:
     case MaskSeedKind::BottomRight:
+        // 角落情况：出生时即可确定唯一入口，掩码始终激活。
         maskActive_ = true;
         break;
     case MaskSeedKind::Internal:
+        // 内部出生（无越界信息）：需要水平和垂直都满 15 格才能激活掩码。
         maskActive_ = (maxCol - minCol + 1 >= kEstimatedSize) && (maxRow - minRow + 1 >= kEstimatedSize);
         if (maskActive_) best_.entry = {-minRow, -minCol};
         break;
     }
 
+    // ===== 阶段 5：重建估计已观察格集合 =====
+    // 用最佳假设将所有已观察格映射到 15x15 估计坐标。
     observedEstimated_.clear();
     for (const auto &pos : observed) {
         const Position mapped = mapWithHypothesis(pos, best_);
+        // 安全守卫：如果掩码已激活但映射结果越界，说明假设矛盾，回退掩码。
         if (maskActive_ && !insideEstimated(mapped)) {
             maskActive_ = false;
             observedEstimated_.clear();
             break;
         }
+        // 只收录映射后落在 15x15 范围内的坐标。
         if (insideEstimated(mapped)) observedEstimated_.insert(mapped);
     }
 }
@@ -602,14 +635,21 @@ int MapPoseEstimator::estimatedObservedCount() const
 std::vector<int> MapPoseEstimator::unknownComponentSizesTouchingView(Position localTarget, const LocalKnownMap &localMap,
                                                                      int areaMax) const
 {
+    // 守卫 1：areaMax <= 0 意味着不统计任何未知格。
     if (areaMax <= 0) return {0};
+    // 守卫 2：掩码已激活但目标不在估计迷宫内，无未知区域可探索。
     if (maskActive_ && !isInsideEstimatedMaze(localTarget)) return {0};
 
+    // 构建已观察格集合（作为 BFS 的障碍），已观察格不可穿过。
     const auto observedPositions = localMap.observedPositions();
     std::set<Position> observed(observedPositions.begin(), observedPositions.end());
+    // Lambda：判断某局部坐标是否被估计掩码边界阻挡。
+    // 掩码激活时：15x15 四条边视为不可穿过的墙。
+    // 掩码未激活但已知出生边时：seedKind_ 对应的方向也按迷宫边界处理。
     const auto blockedByMaskBoundary = [&](Position pos) {
         const Position mapped = localToEstimatedGlobal(pos);
         if (maskActive_) {
+            // 掩码激活：超出 15x15 或位于边缘一圈都视作墙。
             if (!insideEstimated(mapped)) return true;
             return mapped.first == 0 || mapped.second == 0 || mapped.first == kEstimatedSize - 1 ||
                    mapped.second == kEstimatedSize - 1;
@@ -625,7 +665,10 @@ std::vector<int> MapPoseEstimator::unknownComponentSizesTouchingView(Position lo
             return false;
         }
     };
+    // 守卫 3：目标本身被边界阻挡，无未知区域可展开。
     if (blockedByMaskBoundary(localTarget)) return {0};
+    // BFS：从 target 出发，已观察格不可穿过，未知格可继续扩展。
+    // 返回的是"能触达的未知格数量"——即 BFS 过程中遇到的、不在 observed 中的格子数。
     std::set<Position> visited;
     std::queue<Position> queue;
     queue.push(localTarget);
@@ -634,12 +677,15 @@ std::vector<int> MapPoseEstimator::unknownComponentSizesTouchingView(Position lo
     while (!queue.empty()) {
         const auto [row, col] = queue.front();
         queue.pop();
+        // 当前格不在已观察集合中 → 是未知格 → 计数加一。
         if (!observed.count({row, col})) {
             ++expandableCount;
+            // 提前终止优化：已知未知格数达到 areaMax 上限，无需继续搜索。
             if (expandableCount >= areaMax) return {areaMax};
         }
         for (const auto [dr, dc] : kDirs) {
             const Position next{row + dr, col + dc};
+            // 跳过已访问格、已观察格和被掩码边界阻挡的格。
             if (visited.count(next) || observed.count(next) || blockedByMaskBoundary(next)) {
                 continue;
             }
@@ -647,6 +693,7 @@ std::vector<int> MapPoseEstimator::unknownComponentSizesTouchingView(Position lo
             queue.push(next);
         }
     }
+    // BFS 结束，返回实际统计到的未知格数量（可能小于 areaMax，表示连通块封闭）。
     return {expandableCount};
 }
 
@@ -773,12 +820,17 @@ const RewardParameters &PathValueEvaluator::parameters() const
 int PathValueEvaluator::pathResourceDelta(const std::vector<Position> &path, const LocalKnownMap &localMap) const
 {
     int delta = 0;
+    // 从 i=1 开始遍历，跳过 path[0]（当前站立格），避免对已经结算过的格子重复加减资源。
+    // path[0] 位置的资源和一次性事件（金币/陷阱）在 AI 到达该格时已经结算过了。
     for (size_t i = 1; i < path.size(); ++i) {
         const Position pos = path[i];
         const std::string tile = localMap.tile(pos);
+        // 金币 +50，但只有尚未拾取的才会计入；已拾取代表资源已入账，不可重复加分。
         if (tile == "G" && !localMap.isCollected(pos)) delta += kGoldValue;
+        // 陷阱 -30，但只有尚未触发的才会计入；已触发代表惩罚已扣过，不可重复扣分。
         if (tile == "T" && !localMap.isTriggered(pos)) delta += kTrapValue;
     }
+    // delta 是该路径上所有一次性资源的净变化量（可能为正、负或零）。
     return delta;
 }
 
@@ -796,14 +848,20 @@ int PathValueEvaluator::pathResourceDelta(const std::vector<Position> &path, con
 bool PathValueEvaluator::pathKeepsResourceNonNegative(const std::vector<Position> &path, int currentResource,
                                                       const LocalKnownMap &localMap) const
 {
+    // 从当前资源开始，逐步模拟路径上每一步的资源变化。
+    // 与 pathResourceDelta 不同，这里必须做"前缀检查"：不能只看总 DeltaR，
+    // 因为"先踩陷阱到负数再吃金币补回来"的路径在语义上是非法的。
     int resource = currentResource;
     for (size_t i = 1; i < path.size(); ++i) {
         const Position pos = path[i];
         const std::string tile = localMap.tile(pos);
         if (tile == "G" && !localMap.isCollected(pos)) resource += kGoldValue;
         if (tile == "T" && !localMap.isTriggered(pos)) resource += kTrapValue;
+        // 一旦某个前缀使资源变为负数，路径非法，立即返回 false。
+        // 这保证了路径执行过程中 AI 不会进入负资源状态。
         if (resource < 0) return false;
     }
+    // 所有前缀的资源都 >= 0，路径在资源约束下是可行的。
     return true;
 }
 
@@ -825,6 +883,7 @@ double PathValueEvaluator::informationProxy(Position target, const LocalKnownMap
                                             const MapPoseEstimator &poseEstimator, double areaCap,
                                             bool forceAreaMax) const
 {
+    // 第一步：统计已观察格中的金币和陷阱数量，用于估计各类型的密度。
     int observedCount = 0;
     int goldCount = 0;
     int trapCount = 0;
@@ -834,22 +893,36 @@ double PathValueEvaluator::informationProxy(Position target, const LocalKnownMap
         if (tile == "G") ++goldCount;
         if (tile == "T") ++trapCount;
     }
+    // 第二步：用贝叶斯平滑估计金币密度 rhoG 和陷阱密度 rhoT。
+    // 分母加 lambda 避免观察数少时密度估计波动过大（伪计数平滑）；
+    // 分子加 lambdaG/lambdaT 作为先验，避免早期观察为零时密度被估计为零。
     const double denominator = observedCount + parameters_.lambda;
     const double rhoG = (goldCount + parameters_.lambdaG) / denominator;
     const double rhoT = (trapCount + parameters_.lambdaT) / denominator;
+    // 第三步：计算未知区域单位面积期望价值 v_area = 50 * rhoG - 30 * rhoT。
+    // 50 和 30 分别对应金币和陷阱的资源价值（见 GameTypes.h）。
+    // 然后归一化到 [rhoAreaValueMin, 1] 得到价值密度 rho_area_value。
     const double areaValue = 50.0 * rhoG - 30.0 * rhoT;
     const double areaValueDensity = std::clamp(std::max(areaValue, 0.0) / 50.0, parameters_.rhoAreaValueMin, 1.0);
 
+    // 第四步：确定 |C| 面积裁剪上限。areaCap <= 0 表示使用默认 areaMax；
+    // 出口已知后 areaCap 通常会降到 knownExitAreaCap (1.5)，削弱开阔区域奖励。
     const double activeAreaCap = areaCap > 0.0 ? areaCap : static_cast<double>(parameters_.areaMax);
     const int searchAreaCap = std::max(1, static_cast<int>(std::ceil(activeAreaCap)));
     double componentValue = 0.0;
+    // 第五步：计算未知连通块价值。
+    // Boss-gated 区域（forceAreaMax=true）且未知延伸触达迷宫边缘时，
+    // 按 bossEdgeAreaBonus (15) 替代 |C|，给予更高的通关推进权重。
     if (forceAreaMax && poseEstimator.unknownExtensionTouchesMazeEdge(target, localMap)) {
         componentValue = static_cast<double>(parameters_.bossEdgeAreaBonus) * areaValueDensity;
     } else {
+        // 一般情况：对每个与目标视野接触的未知连通块，取 min(|C|, cap) 并乘以价值密度。
         for (const int size : poseEstimator.unknownComponentSizesTouchingView(target, localMap, searchAreaCap)) {
             componentValue += std::min(static_cast<double>(size), activeAreaCap) * areaValueDensity;
         }
     }
+    // 第六步：乘以 kappaU (60) 得到最终 I_proxy。
+    // kappaU 将"等效未知格数"映射到与金币同一量级的奖励空间。
     return parameters_.kappaU * componentValue;
 }
 
@@ -867,18 +940,26 @@ double PathValueEvaluator::informationProxy(Position target, const LocalKnownMap
 double PathValueEvaluator::futureGainMarginal(Position target, const std::vector<Position> &path,
                                               const LocalKnownMap &localMap) const
 {
+    // 第一步：收集当前路径上会拾取的金币集合，避免与路径真实收益重复计入。
+    // 这些金币的 +50 已经包含在 pathResourceDelta 的 DeltaR 中，
+    // 如果再计入 tailUB 就会重复算同一枚金币。
     std::set<Position> coinsOnPath;
     for (size_t i = 1; i < path.size(); ++i) {
         if (localMap.tile(path[i]) == "G" && !localMap.isCollected(path[i])) coinsOnPath.insert(path[i]);
     }
 
     double best = 0.0;
+    // 第二步：对所有已知未拾取金币，排除已在路径上的，计算从 target 出发的 50/(dist+1) 上界。
+    // 50/(dist+1) 是一种边际效用估计：金币价值被步数稀释，
+    // dist 是 target 到该金币的最短已知路径长度（不含 target 自身步数）。
     for (const auto &coin : localMap.knownCoins()) {
         if (coinsOnPath.find(coin) != coinsOnPath.end()) continue;
         const auto coinPath = shortestPathOnKnownMap(target, coin, localMap);
+        // 如果从 target 不可达该金币，跳过。
         if (coinPath.empty()) continue;
         best = std::max(best, static_cast<double>(kGoldValue) / (pathLength(coinPath) + 1.0));
     }
+    // 返回所有可达金币中最大的 50/(dist+1) 值；无可达金币时返回 0。
     return best;
 }
 
@@ -894,12 +975,18 @@ double PathValueEvaluator::futureGainMarginal(Position target, const std::vector
  */
 double PathValueEvaluator::computeQEff(const PathValueContext &context, const LocalKnownMap &localMap) const
 {
+    // q_ref 是"单位步数的平均资源回报"，用于衡量每一步的机会成本。
+    // 分母加 epsilon (1e-6) 防止 steps=0 时除零。
     double qRef = static_cast<double>(context.state.resource) / (context.state.steps + parameters_.epsilon);
+    // 如果出口已知且可达，用出口路径估计更准确的机会成本：
+    // 即"到达终点时的总资源 / 总步数"，反映了完整的资源效率。
     if (!context.exitPath.empty()) {
         const int exitDelta = pathResourceDelta(context.exitPath, localMap);
         qRef = static_cast<double>(context.state.resource + exitDelta) /
                (context.state.steps + pathLength(context.exitPath) + parameters_.epsilon);
     }
+    // q_eff = max(q_ref, q_min)：取 q_ref 和 qMin (1.0) 的较大值。
+    // qMin 防止开局 R=0 时 q_ref=0，导致路径长度代价完全消失。
     return std::max(qRef, parameters_.qMin);
 }
 
@@ -914,8 +1001,12 @@ double PathValueEvaluator::computeQEff(const PathValueContext &context, const Lo
  */
 double PathValueEvaluator::marginPenalty(int projectedResource) const
 {
+    // 资源高于安全线 safeResource (30) 时不施加惩罚。
     if (projectedResource >= parameters_.safeResource) return 0.0;
+    // margin 是"资源缺口占安全线的比例"：例如 R=10 时 margin = (30-10)/30 = 0.667。
     const double margin = static_cast<double>(parameters_.safeResource - projectedResource) / parameters_.safeResource;
+    // 平方惩罚 lambdaMargin * margin^2：资源越低惩罚增长越快（边际递增），
+    // 但比固定大常数柔和，不会把紧贴安全线的路径也压成极低分。
     return parameters_.lambdaMargin * margin * margin;
 }
 
@@ -933,6 +1024,7 @@ double PathValueEvaluator::marginPenalty(int projectedResource) const
 double PathValueEvaluator::updateAlphaSmooth(double previousAlpha, const LocalKnownMap &localMap,
                                              const MapPoseEstimator &poseEstimator) const
 {
+    // 第一步：统计当前已观察格中的金币和陷阱数量。
     int observedCount = 0;
     int goldCount = 0;
     int trapCount = 0;
@@ -943,16 +1035,28 @@ double PathValueEvaluator::updateAlphaSmooth(double previousAlpha, const LocalKn
         if (tile == "T") ++trapCount;
     }
 
+    // 第二步：计算贝叶斯平滑后的金币密度 rhoG 和陷阱密度 rhoT。
+    // lambda/lambdaG/lambdaT 是伪计数先验，防止早期样本少时密度估计剧烈震荡。
     const double denominator = observedCount + parameters_.lambda;
     const double rhoG = (goldCount + parameters_.lambdaG) / denominator;
     const double rhoT = (trapCount + parameters_.lambdaT) / denominator;
+    // rhoU 是未知区域比例 = 估计未知格数 / 225（15*15 迷宫总格数）。
     const double rhoU = static_cast<double>(poseEstimator.estimatedUnknownCount()) / 225.0;
+    // v_unk 是未知区域的期望净值，用已观察区域的金币/陷阱密度外推。
     const double unknownValue = 50.0 * rhoG - 30.0 * rhoT;
 
+    // 第三步：计算原始 alpha_raw。
+    // 分子：alpha0 * (1 + wU*rhoU + wV*max(v_unk,0)/50)
+    //   — 未知区域多 → 探索权重升高；期望净值高 → 探索权重升高。
+    // 分母：1 + wR*rhoT
+    //   — 陷阱密度高 → 风险大 → 探索权重被抑制。
     const double raw = parameters_.alpha0 *
                        (1.0 + parameters_.wU * rhoU + parameters_.wV * std::max(unknownValue, 0.0) / 50.0) /
                        (1.0 + parameters_.wR * rhoT);
+    // 将 raw 裁剪到 [alphaMin, alphaMax] 防止极端值（例如全陷阱区域 alpha 被压到 0 以下）。
     const double clipped = std::clamp(raw, parameters_.alphaMin, parameters_.alphaMax);
+    // 第四步：EMA 平滑 alpha_t = theta * alpha_{t-1} + (1-theta) * alpha_raw。
+    // theta=0.8 表示上一步 alpha 占比 80%，新估计占比 20%，防止 alpha 剧烈波动。
     return parameters_.theta * previousAlpha + (1.0 - parameters_.theta) * clipped;
 }
 
@@ -976,24 +1080,41 @@ double PathValueEvaluator::evaluate(const std::vector<Position> &path, Position 
                                     const PathValueContext &context, const LocalKnownMap &localMap,
                                     const MapPoseEstimator &poseEstimator) const
 {
+    // 守卫 1：路径至少要有 2 个节点（起点+目标），单节点路径无意义。
     if (path.size() <= 1) return -1e18;
+    // 守卫 2：路径上所有格子必须是在已知地图上可通行的。
+    // 任何未知格、墙或已清除前的 Boss 都会使路径无效。
     for (const auto &pos : path) {
         if (!localMap.isWalkableForPlanning(pos)) return -1e18;
     }
 
+    // 计算路径真实资源变化 DeltaR（金币+50，陷阱-30）。
     const int delta = pathResourceDelta(path, localMap);
     const int projectedResource = context.state.resource + delta;
+    // 守卫 3：走完路径后总资源不能为负（最终资源约束）。
     if (projectedResource < 0) return -1e18;
+    // 守卫 4：路径每一步前缀的资源都不能为负（前缀资源约束）。
+    // 这是更强的条件，禁止"先负后补"的路径。
     if (!pathKeepsResourceNonNegative(path, context.state.resource, localMap)) return -1e18;
 
+    // 计算探索信息价值 I_proxy。
+    // 出口未知时 areaCap = areaMax (12)；出口已知后降到 knownExitAreaCap (1.5)。
+    // Boss-gated 目标（context.bossGatedAreaMaxTargets 中的目标）forceAreaMax=true，
+    // 会触发 bossEdgeAreaBonus (15) 替代 |C|。
     const double info = informationProxy(target, localMap, poseEstimator,
                                          context.exitPath.empty() ? static_cast<double>(parameters_.areaMax)
                                                                   : parameters_.knownExitAreaCap,
                                          context.bossGatedAreaMaxTargets.count(target) > 0);
+    // 计算边际尾部金币价值上界 V_tail^marg。
     const double tail = futureGainMarginal(target, path, localMap);
+    // 守卫 5：如果 DeltaR <= 0 且 I_proxy == 0，目标没有任何收益来源（无金币、无探索价值），
+    // 直接判为负无穷，避免 AI 选择纯浪费步数的目标。
     if (delta <= 0 && info == 0.0) return -1e18;
+    // 计算路径长度机会成本系数 q_eff 和资源安全惩罚 margin。
     const double qEff = computeQEff(context, localMap);
     const double margin = marginPenalty(projectedResource);
+    // 主评分公式：
+    // Score = DeltaR + omegaI * alpha * I_proxy + beta * V_tail - eta_q * qEff * len - phi_margin
     return delta + parameters_.omegaI * context.state.alphaSmooth * info + parameters_.beta * tail -
            parameters_.qEffLengthWeight * qEff * pathLength(path) - margin;
 }
