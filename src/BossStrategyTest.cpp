@@ -53,10 +53,10 @@ int main()
     require(result.at("phases").size() == 4, "sample should contain four sequential boss phases");
     require(result.value("CoinConsumption", 0) == 9, "CoinConsumption should be reported as revive coin cost");
     require(result.at("reviveRule").value("restartPosition", "") == "S", "revive should restart from S");
-    require(result.value("turns", 0) == 11, "cooldown-reserve sequential strategy should meet minRounds=11");
+    require(result.value("turns", 0) <= 11, "rolling light-capacity strategy should meet minRounds=11");
     require(result.value("withinMinRounds", false), "sample should be defeated within minRounds");
-    require(result.value("algorithm", "") == "unknown_suffix_robust_value_boss_planner",
-            "boss strategy should report robust-value planner");
+    require(result.value("algorithm", "") == "rolling_horizon_damage_capacity_boss_planner",
+            "boss strategy should report rolling light-capacity planner");
     require(result.value("knownHpPersistenceImplemented", false),
             "boss strategy should implement known HP persistence across attempts");
 
@@ -66,15 +66,18 @@ int main()
                                                              Json::array({4, 4})})},
                                {"minRounds", 4}};
     const Json regression = runBossBattleJson(regressionInput);
-    require(regression.value("ok", false), "robust planner should solve [11,7,18] regression");
-    require(regression.value("turns", 0) == 4, "regression should be solved in four turns");
+    require(regression.value("ok", false), "rolling light-capacity planner should solve [11,7,18] regression");
+    require(regression.value("turns", 0) <= 4, "regression should be solved within four turns");
     require(regression.value("withinMinRounds", false), "regression should satisfy minRounds=4");
-    const auto regressionSequence = regression.at("sequence").get<std::vector<int>>();
-    require((regressionSequence == std::vector<int>{1, 0, 2, 0} ||
-             regressionSequence == std::vector<int>{2, 0, 1, 0}),
-            "regression should use a legal robust four-turn sequence");
+    const auto firstRegressionPhase = regression.at("phases")[0].at("sequence").get<std::vector<int>>();
+    require(firstRegressionPhase != std::vector<int>{0, 3},
+            "first phase should not spend two turns only to refresh cooldowns");
+    require(firstRegressionPhase.size() == 1,
+            "first phase should prefer a one-turn kill when suffix capacity is better");
     require(regression.at("finalKnownBossHPs") == Json::array({11, 7, 18}),
             "regression should reveal and persist all boss HPs");
+    require(regression.at("phases")[0].at("candidateScores")[0].contains("lightScore"),
+            "candidate scores should expose lightScore");
 
     const Json hiddenFutureA = regressionInput;
     const Json hiddenFutureB{{"B", Json::array({11, 99, 99})},
@@ -88,6 +91,17 @@ int main()
     require(hiddenA.at("attempts")[0].at("phases")[0].at("sequence") ==
                 hiddenB.at("attempts")[0].at("phases")[0].at("sequence"),
             "first boss selected sequence must not depend on unrevealed future HPs");
+
+    const Json highHpInput{{"B", Json::array({135, 156, 107, 102})},
+                           {"PlayerSkills",
+                            Json::array({Json::array({5, 0}), Json::array({22, 4}), Json::array({40, 8})})},
+                           {"minRounds", 45}};
+    const Json highHpResult = runBossBattleJson(highHpInput);
+    require(highHpResult.value("ok", false), "high-HP case should be solved without robust Hmax enumeration");
+    require(highHpResult.value("algorithm", "") == "rolling_horizon_damage_capacity_boss_planner",
+            "high-HP case should use rolling light-capacity planner");
+    require(highHpResult.at("attempts")[0].at("phases")[0].at("candidateScores")[0].contains("lightScore"),
+            "high-HP candidate scores should include lightScore");
 
     const Json reviveInput{{"maze",
                             Json::array({Json::array({"#", "#", "#", "#", "#"}),

@@ -17,6 +17,9 @@ struct BossPlanCandidate {
     int cooldownCostAfter = 0;
     int readyDamageAfter = 0;
     int robustScore = -1;
+    int lightScore = -1;
+    int remainingTurnsAfter = 0;
+    int remainingUnknownBossCount = 0;
 };
 
 struct PlannerMemo {
@@ -24,6 +27,11 @@ struct PlannerMemo {
     std::map<std::string, int> robustUnknown;
     std::map<std::string, int> knownPrefix;
 };
+
+inline constexpr int kUnknownBossTurnSlack = 3;
+inline constexpr int kDefaultUnknownBossTurns = 10;
+inline constexpr int kDefaultLightBossTurns = 20;
+inline constexpr int kLightCapacityInfinity = 1000000000;
 
 /**
  * 功能：读取任务 JSON 中的总回合参考值。
@@ -88,6 +96,23 @@ std::string killKey(int hp, const std::vector<int> &cooldown, int exactTurns)
 {
     std::ostringstream key;
     key << hp << '|' << exactTurns << '|' << vectorKey(cooldown);
+    return key.str();
+}
+
+/**
+ * 功能：构造单 Boss 枚举中的中间状态 key。
+ * 输入：
+ *   - hp：当前 Boss 剩余血量。
+ *   - cooldown：当前技能冷却。
+ * 输出：
+ *   - 返回同一层 BFS/DP 内用于去重的 key。
+ * 关键逻辑：
+ *   - 同一回合层里，hp 和 cooldown 相同的状态后续可达集合完全一致，只保留字典序最小序列即可避免动作序列爆炸。
+ */
+std::string liveStateKey(int hp, const std::vector<int> &cooldown)
+{
+    std::ostringstream key;
+    key << hp << '|' << vectorKey(cooldown);
     return key.str();
 }
 
@@ -192,6 +217,60 @@ std::vector<int> availableBossActions(const std::vector<int> &cooldown, const st
 }
 
 /**
+ * 功能：计算每回合不可避免的最小正伤害。
+ * 输入：
+ *   - skills：技能列表。
+ * 输出：
+ *   - 若存在冷却为 0 且伤害为正的普通技能，返回其中最小伤害；否则返回 0。
+ * 关键逻辑：
+ *   - 冷却 0 技能每回合都可用，且有技能可用时不允许等待，因此 Boss 不可能被拖过该最小伤害允许的最长存活回合。
+ */
+int minimumForcedDamagePerTurn(const std::vector<Skill> &skills)
+{
+    int damage = 0;
+    for (const Skill &skill : skills) {
+        if (skill.cooldown != 0 || skill.damage <= 0) continue;
+        damage = damage == 0 ? skill.damage : std::min(damage, skill.damage);
+    }
+    return damage;
+}
+
+/**
+ * 功能：估计全技能可用状态下若干回合内的最大循环输出。
+ * 输入：
+ *   - turns：允许输出的回合数，必须非负。
+ *   - skills：技能列表。
+ * 输出：
+ *   - 返回最多 turns 回合内可打出的最大总伤害。
+ * 关键逻辑：
+ *   - 使用动态规划枚举冷却状态；该值是公开技能和回合预算推导出的先验，不读取未揭示 Boss 血量。
+ */
+int maxDamageWithinTurns(int turns, const std::vector<Skill> &skills)
+{
+    if (turns <= 0 || skills.empty()) return 0;
+    std::map<std::vector<int>, int> states;
+    states[std::vector<int>(skills.size(), 0)] = 0;
+    int bestDamage = 0;
+
+    for (int turn = 0; turn < turns; ++turn) {
+        std::map<std::vector<int>, int> nextStates;
+        for (const auto &[cooldown, totalDamage] : states) {
+            for (const int action : availableBossActions(cooldown, skills)) {
+                int ignoredHp = 0;
+                std::vector<int> nextCooldown;
+                applyBossAction(0, cooldown, skills, action, ignoredHp, nextCooldown);
+                const int nextDamage = totalDamage + (action >= 0 ? skills[action].damage : 0);
+                auto &slot = nextStates[nextCooldown];
+                slot = std::max(slot, nextDamage);
+                bestDamage = std::max(bestDamage, nextDamage);
+            }
+        }
+        states = std::move(nextStates);
+    }
+    return bestDamage;
+}
+
+/**
  * 功能：枚举从指定冷却状态出发，恰好 exactTurns 回合击杀血量 hp 的所有结束状态。
  * 输入：
  *   - hp：当前 Boss 血量。
@@ -209,6 +288,8 @@ std::vector<BossPlanCandidate> enumerateKillExactTurns(int hp, const std::vector
                                                        PlannerMemo &memo)
 {
     if (hp <= 0 || exactTurns <= 0) return {};
+    const int forcedDamage = minimumForcedDamagePerTurn(skills);
+    if (forcedDamage > 0 && (exactTurns - 1) * forcedDamage >= hp) return {};
     const std::string memoKey = killKey(hp, startCooldown, exactTurns);
     if (const auto it = memo.killExact.find(memoKey); it != memo.killExact.end()) return it->second;
 
@@ -221,7 +302,7 @@ std::vector<BossPlanCandidate> enumerateKillExactTurns(int hp, const std::vector
     std::vector<State> states{{hp, startCooldown, {}}};
     std::map<std::string, BossPlanCandidate> dedup;
     for (int turn = 0; turn < exactTurns; ++turn) {
-        std::vector<State> nextStates;
+        std::map<std::string, State> nextDedup;
         for (const State &state : states) {
             if (state.hp <= 0) continue;
             for (const int action : availableBossActions(state.cooldown, skills)) {
@@ -248,10 +329,17 @@ std::vector<BossPlanCandidate> enumerateKillExactTurns(int hp, const std::vector
                         dedup[key] = std::move(candidate);
                     }
                 } else {
-                    nextStates.push_back({nextHp, std::move(nextCooldown), std::move(nextSequence)});
+                    const std::string key = liveStateKey(nextHp, nextCooldown);
+                    const auto old = nextDedup.find(key);
+                    if (old == nextDedup.end() || nextSequence < old->second.sequence) {
+                        nextDedup[key] = {nextHp, std::move(nextCooldown), std::move(nextSequence)};
+                    }
                 }
             }
         }
+        std::vector<State> nextStates;
+        nextStates.reserve(nextDedup.size());
+        for (auto &item : nextDedup) nextStates.push_back(std::move(item.second));
         states = std::move(nextStates);
         if (states.empty() && turn + 1 < exactTurns) break;
     }
@@ -284,11 +372,251 @@ std::vector<BossPlanCandidate> enumerateKillUpToTurns(int hp, const std::vector<
                                                       PlannerMemo &memo)
 {
     std::vector<BossPlanCandidate> result;
+    const int forcedDamage = minimumForcedDamagePerTurn(skills);
+    if (forcedDamage > 0) maxTurns = std::min(maxTurns, (hp + forcedDamage - 1) / forcedDamage);
     for (int turns = 1; turns <= maxTurns; ++turns) {
         auto exact = enumerateKillExactTurns(hp, startCooldown, skills, turns, memo);
         result.insert(result.end(), exact.begin(), exact.end());
     }
     return result;
+}
+
+/**
+ * 功能：从指定冷却状态出发，计算未来每个回合预算内的最大累计伤害。
+ * 输入：
+ *   - startCooldown：当前技能冷却状态。
+ *   - maxTurns：最多向前估计的回合数，必须非负。
+ *   - skills：技能列表。
+ * 输出：
+ *   - 返回 bestDamage，bestDamage[k] 表示 k 回合内可达到的最大累计伤害。
+ * 关键逻辑：
+ *   - 使用 cooldown -> 最大累计伤害的动态规划；每回合复用 availableBossActions 和 applyBossAction，保证冷却语义与真实 Boss 战一致。
+ */
+std::vector<int> maxDamageProfileFromCooldown(const std::vector<int> &startCooldown, int maxTurns,
+                                              const std::vector<Skill> &skills)
+{
+    std::vector<int> bestDamage(std::max(0, maxTurns) + 1, 0);
+    if (maxTurns <= 0 || skills.empty()) return bestDamage;
+
+    std::map<std::vector<int>, int> states;
+    states[startCooldown] = 0;
+    for (int turn = 1; turn <= maxTurns; ++turn) {
+        std::map<std::vector<int>, int> nextStates;
+        for (const auto &[cooldown, totalDamage] : states) {
+            for (const int action : availableBossActions(cooldown, skills)) {
+                int ignoredHp = 0;
+                std::vector<int> nextCooldown;
+                applyBossAction(0, cooldown, skills, action, ignoredHp, nextCooldown);
+                const int nextDamage = totalDamage + (action >= 0 ? skills[action].damage : 0);
+                auto &slot = nextStates[nextCooldown];
+                slot = std::max(slot, nextDamage);
+                bestDamage[turn] = std::max(bestDamage[turn], nextDamage);
+            }
+        }
+        bestDamage[turn] = std::max(bestDamage[turn], bestDamage[turn - 1]);
+        states = std::move(nextStates);
+        if (states.empty()) {
+            for (int rest = turn + 1; rest <= maxTurns; ++rest) bestDamage[rest] = bestDamage[turn];
+            break;
+        }
+    }
+    return bestDamage;
+}
+
+/**
+ * 功能：估计未知 Boss 后缀在剩余回合内可承受的单 Boss 血量阈值。
+ * 输入：
+ *   - cooldown：进入未知后缀前的技能冷却。
+ *   - remainingTurns：剩余总回合数。
+ *   - unknownCount：仍未揭示的 Boss 数量。
+ *   - skills：技能列表。
+ * 输出：
+ *   - 返回轻量容量分 lightScore；不可行时返回 -1，无未知 Boss 时返回极大值。
+ * 关键逻辑：
+ *   - 不枚举未知 Boss 血量，只用伤害容量曲线按时间切片估计未来后缀的保底处理能力。
+ */
+int suffixCapacityThreshold(const std::vector<int> &cooldown, int remainingTurns, int unknownCount,
+                            const std::vector<Skill> &skills)
+{
+    if (unknownCount == 0) return kLightCapacityInfinity;
+    if (remainingTurns < unknownCount || remainingTurns <= 0) return -1;
+
+    const std::vector<int> damageProfile = maxDamageProfileFromCooldown(cooldown, remainingTurns, skills);
+    int threshold = kLightCapacityInfinity;
+    for (int s = 1; s <= unknownCount; ++s) {
+        const int deadline = (s * remainingTurns + unknownCount - 1) / unknownCount;
+        const int avgCapacity = damageProfile[deadline] / s;
+        threshold = std::min(threshold, avgCapacity);
+    }
+    return threshold;
+}
+
+/**
+ * 功能：在已知 Boss 后缀中选择一个轻量滚动方案。
+ * 输入：
+ *   - candidates：当前已知 Boss 在回合限制内的击杀候选。
+ * 输出：
+ *   - 返回用于推进轻量后缀模拟的候选；无候选时 ok=false。
+ * 关键逻辑：
+ *   - 已知后缀只负责快速推进状态，比较顺序为回合少、冷却成本低、可用伤害高、序列字典序小。
+ */
+BossPlanCandidate chooseBestKnownSuffixCandidate(const std::vector<BossPlanCandidate> &candidates)
+{
+    BossPlanCandidate best;
+    for (const BossPlanCandidate &candidate : candidates) {
+        if (!candidate.ok) continue;
+        if (!best.ok || candidate.turns < best.turns ||
+            (candidate.turns == best.turns && candidate.cooldownCostAfter < best.cooldownCostAfter) ||
+            (candidate.turns == best.turns && candidate.cooldownCostAfter == best.cooldownCostAfter &&
+             candidate.readyDamageAfter > best.readyDamageAfter) ||
+            (candidate.turns == best.turns && candidate.cooldownCostAfter == best.cooldownCostAfter &&
+             candidate.readyDamageAfter == best.readyDamageAfter && candidate.sequence < best.sequence)) {
+            best = candidate;
+        }
+    }
+    return best;
+}
+
+/**
+ * 功能：统一评估当前候选执行后的已知后缀和未知后缀轻量容量。
+ * 输入：
+ *   - currentBossIndex：当前候选已经击败的 Boss 下标。
+ *   - remainingTurns：执行当前候选后的剩余回合。
+ *   - cooldown：执行当前候选后的技能冷却。
+ *   - knownHPs：当前已揭示 Boss 血量前缀。
+ *   - totalBossCount：Boss 总数量。
+ *   - skills：技能列表。
+ * 输出：
+ *   - 返回 lightScore；已知后缀无法在保留每个后续 Boss 至少一回合的情况下击败时返回 -1。
+ * 关键逻辑：
+ *   - 已揭示的后缀 Boss 用真实已知血量推进；未揭示后缀只用容量阈值估计，不读取未来 B 数组。
+ */
+int evaluateSuffixLightCapacity(int currentBossIndex, int remainingTurns, std::vector<int> cooldown,
+                                const std::vector<int> &knownHPs, int totalBossCount,
+                                const std::vector<Skill> &skills)
+{
+    int nextIndex = currentBossIndex + 1;
+    PlannerMemo memo;
+    while (nextIndex < static_cast<int>(knownHPs.size())) {
+        const int remainingBossesAfterThis = totalBossCount - nextIndex - 1;
+        const int phaseLimit = remainingTurns - remainingBossesAfterThis;
+        if (phaseLimit <= 0) return -1;
+
+        auto candidates = enumerateKillUpToTurns(knownHPs[nextIndex], cooldown, skills, phaseLimit, memo);
+        BossPlanCandidate bestKnown = chooseBestKnownSuffixCandidate(candidates);
+        if (!bestKnown.ok) return -1;
+
+        remainingTurns -= bestKnown.turns;
+        cooldown = bestKnown.cooldownAfter;
+        ++nextIndex;
+    }
+
+    return suffixCapacityThreshold(cooldown, remainingTurns, totalBossCount - nextIndex, skills);
+}
+
+/**
+ * 功能：比较两个滚动视野伤害容量候选。
+ * 输入：
+ *   - best：当前最优候选。
+ *   - candidate：待比较候选。
+ * 输出：
+ *   - candidate 更优时返回 true。
+ * 关键逻辑：
+ *   - 主优先级为 lightScore，随后才用回合数、冷却成本、可用伤害和字典序稳定选择。
+ */
+bool betterBossPlanByLightCapacity(const BossPlanCandidate &best, const BossPlanCandidate &candidate)
+{
+    if (!candidate.ok || candidate.lightScore < 0) return false;
+    if (!best.ok) return true;
+    if (candidate.lightScore != best.lightScore) return candidate.lightScore > best.lightScore;
+    if (candidate.turns != best.turns) return candidate.turns < best.turns;
+    if (candidate.cooldownCostAfter != best.cooldownCostAfter) {
+        return candidate.cooldownCostAfter < best.cooldownCostAfter;
+    }
+    if (candidate.readyDamageAfter != best.readyDamageAfter) {
+        return candidate.readyDamageAfter > best.readyDamageAfter;
+    }
+    return candidate.sequence < best.sequence;
+}
+
+/**
+ * 功能：把轻量容量候选方案转为调试 JSON。
+ * 输入：
+ *   - candidate：候选方案。
+ * 输出：
+ *   - 返回包含 lightScore、剩余回合和未知 Boss 数量的调试对象。
+ * 关键逻辑：
+ *   - candidateScores 用于解释滚动视野选择过程，不参与后续计算。
+ */
+Json candidateLightDebugJson(const BossPlanCandidate &candidate)
+{
+    return {{"sequence", candidate.sequence},
+            {"turns", candidate.turns},
+            {"cooldownAfter", candidate.cooldownAfter},
+            {"cooldownCostAfter", candidate.cooldownCostAfter},
+            {"readyDamageAfter", candidate.readyDamageAfter},
+            {"remainingTurnsAfter", candidate.remainingTurnsAfter},
+            {"remainingUnknownBossCount", candidate.remainingUnknownBossCount},
+            {"lightScore", candidate.lightScore}};
+}
+
+/**
+ * 功能：为当前已揭示 Boss 选择滚动视野伤害容量最优方案。
+ * 输入：
+ *   - currentBossIndex：当前要打的 Boss 下标。
+ *   - usedTurns：本次 attempt 已经使用的回合数。
+ *   - startCooldown：当前技能冷却。
+ *   - knownHPs：已揭示 Boss 血量前缀。
+ *   - totalBossCount：Boss 总数量。
+ *   - minRounds：总回合限制；不存在时使用默认轻量预算。
+ *   - skills：技能列表。
+ *   - candidateScores：输出候选评分调试表。
+ * 输出：
+ *   - 返回当前 Boss 的最优轻量容量方案。
+ * 关键逻辑：
+ *   - 先找当前 Boss 最短击杀回合，再只允许少量 localSlack；后缀用 lightScore 评价，不枚举未知 Boss 血量。
+ */
+BossPlanCandidate solveCurrentBossByLightCapacity(int currentBossIndex, int usedTurns,
+                                                  const std::vector<int> &startCooldown,
+                                                  const std::vector<int> &knownHPs, int totalBossCount,
+                                                  int minRounds, const std::vector<Skill> &skills,
+                                                  Json &candidateScores)
+{
+    BossPlanCandidate best;
+    candidateScores = Json::array();
+    if (currentBossIndex < 0 || currentBossIndex >= static_cast<int>(knownHPs.size())) return best;
+
+    const int maxTurns = minRounds >= 0 ? minRounds - usedTurns : kDefaultLightBossTurns;
+    if (maxTurns <= 0) return best;
+
+    PlannerMemo memo;
+    const auto allCandidates = enumerateKillUpToTurns(knownHPs[currentBossIndex], startCooldown, skills, maxTurns, memo);
+    if (allCandidates.empty()) return best;
+
+    int minTurns = maxTurns + 1;
+    for (const BossPlanCandidate &candidate : allCandidates) {
+        if (candidate.ok) minTurns = std::min(minTurns, candidate.turns);
+    }
+    if (minTurns > maxTurns) return best;
+
+    const int remainingBosses = totalBossCount - currentBossIndex - 1;
+    const int minFutureTurns = remainingBosses;
+    const int spareAfterMinPlan = maxTurns - minTurns - minFutureTurns;
+    int localSlack = 0;
+    if (spareAfterMinPlan >= 2) localSlack = 1;
+    if (spareAfterMinPlan >= 5) localSlack = 2;
+    const int candidateTurnLimit = std::min(maxTurns, minTurns + localSlack);
+
+    for (auto candidate : allCandidates) {
+        if (!candidate.ok || candidate.turns > candidateTurnLimit) continue;
+        candidate.remainingTurnsAfter = maxTurns - candidate.turns;
+        candidate.remainingUnknownBossCount = totalBossCount - static_cast<int>(knownHPs.size());
+        candidate.lightScore = evaluateSuffixLightCapacity(currentBossIndex, candidate.remainingTurnsAfter,
+                                                           candidate.cooldownAfter, knownHPs, totalBossCount, skills);
+        candidateScores.push_back(candidateLightDebugJson(candidate));
+        if (betterBossPlanByLightCapacity(best, candidate)) best = std::move(candidate);
+    }
+    return best;
 }
 
 /**
@@ -300,13 +628,21 @@ std::vector<BossPlanCandidate> enumerateKillUpToTurns(int hp, const std::vector<
  * 输出：
  *   - 返回未知 Boss 鲁棒计算使用的血量上界。
  * 关键逻辑：
- *   - 未提供 UnknownBossHpMax 时使用 2 * maxDamage；只用已揭示血量抬高下界，不读取未揭示 B。
+ *   - 未提供 UnknownBossHpMax 时，用 minRounds、Boss 数量和技能循环输出估计公开先验；不读取未揭示 B。
  */
-int computeUnknownBossHpMax(const Json &source, const std::vector<Skill> &skills, const std::vector<int> &knownHPs)
+int computeUnknownBossHpMax(const Json &source, const std::vector<Skill> &skills, const std::vector<int> &knownHPs,
+                            int totalBossCount, int minRounds)
 {
-    int maxDamage = 0;
-    for (const Skill &skill : skills) maxDamage = std::max(maxDamage, skill.damage);
-    int hMax = source.contains("UnknownBossHpMax") ? source["UnknownBossHpMax"].get<int>() : 2 * maxDamage;
+    int hMax = 0;
+    if (source.contains("UnknownBossHpMax")) {
+        hMax = source["UnknownBossHpMax"].get<int>();
+    } else {
+        const int publicTurns =
+            minRounds >= 0 && totalBossCount > 0
+                ? (minRounds + totalBossCount - 1) / totalBossCount + kUnknownBossTurnSlack
+                : kDefaultUnknownBossTurns;
+        hMax = maxDamageWithinTurns(publicTurns, skills);
+    }
     for (const int hp : knownHPs) hMax = std::max(hMax, hp);
     return std::max(0, hMax);
 }
@@ -378,7 +714,7 @@ int robustUnknownValue(int unknownBossCount, int remainingTurns, const std::vect
     const std::string memoKey = valueKey(unknownBossCount, remainingTurns, cooldown);
     if (const auto it = memo.robustUnknown.find(memoKey); it != memo.robustUnknown.end()) return it->second;
 
-    for (int candidateH = hMax; candidateH >= 0; --candidateH) {
+    const auto canGuarantee = [&](int candidateH) {
         bool allHpHandled = true;
         for (int hp = 1; hp <= candidateH && allHpHandled; ++hp) {
             bool hpHandled = false;
@@ -394,14 +730,23 @@ int robustUnknownValue(int unknownBossCount, int remainingTurns, const std::vect
             }
             allHpHandled = hpHandled;
         }
-        if (allHpHandled) {
-            memo.robustUnknown[memoKey] = candidateH;
-            return candidateH;
+        return allHpHandled;
+    };
+
+    // G(H) 的可行性具有单调性：能保证更高血量时一定能保证更低血量，因此用二分避免 Hmax 变大后逐个递减。
+    int low = 0;
+    int high = hMax;
+    while (low < high) {
+        const int mid = (low + high + 1) / 2;
+        if (canGuarantee(mid)) {
+            low = mid;
+        } else {
+            high = mid - 1;
         }
     }
 
-    memo.robustUnknown[memoKey] = 0;
-    return 0;
+    memo.robustUnknown[memoKey] = low;
+    return low;
 }
 
 /**
@@ -539,10 +884,10 @@ std::vector<Skill> parseSkills(const Json &source)
  * 输入：
  *   - source：任务 JSON，包含 B 血量数组、PlayerSkills 技能数组，可选 minRounds 和 CoinConsumption。
  * 输出：
- *   - 返回 JSON，包含总序列、总回合、每个 Boss 被揭示时的鲁棒阶段方案和复活规则字段。
+ *   - 返回 JSON，包含总序列、总回合、每个 Boss 被揭示时的滚动视野阶段方案和复活规则字段。
  * 关键逻辑：
  *   - 一开始只知道第一只 Boss；失败复活后保留已揭示血量，重新从 Boss0 规划。
- *   - 当前阶段候选用已知前缀 F 和未知后缀 G 评分，不读取 knownHPs 之外的真实 B。
+ *   - 当前阶段候选用轻量伤害容量评分，不读取 knownHPs 之外的真实 B。
  */
 Json runBossBattleJson(const Json &source)
 {
@@ -552,6 +897,16 @@ Json runBossBattleJson(const Json &source)
     if (!source.contains("PlayerSkills") || !source["PlayerSkills"].is_array()) {
         return {{"ok", false}, {"error", "missing PlayerSkills array"}};
     }
+
+    static std::map<std::string, Json> bossResultCache;
+    const std::string cacheKey = source.dump();
+    if (const auto cached = bossResultCache.find(cacheKey); cached != bossResultCache.end()) {
+        return cached->second;
+    }
+    const auto cacheAndReturn = [&](Json result) {
+        bossResultCache[cacheKey] = result;
+        return result;
+    };
 
     const auto bossHPs = source["B"].get<std::vector<int>>();
     if (bossHPs.empty()) return {{"ok", false}, {"error", "B boss HP array must not be empty"}};
@@ -587,21 +942,18 @@ Json runBossBattleJson(const Json &source)
                 knownHPs.push_back(bossHPs[bossIndex]);
             }
 
-            PlannerMemo memo;
-            const int hMax = computeUnknownBossHpMax(source, skills, knownHPs);
             Json candidateScores = Json::array();
             BossPlanCandidate plan =
-                solveCurrentBossByRobustValue(bossIndex, usedTurns, cooldown, knownHPs, totalBossCount, minRounds,
-                                              skills, hMax, memo, candidateScores);
-            if (!plan.ok || plan.robustScore < 0) {
+                solveCurrentBossByLightCapacity(bossIndex, usedTurns, cooldown, knownHPs, totalBossCount, minRounds,
+                                                skills, candidateScores);
+            if (!plan.ok || plan.lightScore < 0) {
                 attemptFailed = true;
-                failureReason = "boss battle has no robust-feasible plan for current known prefix";
+                failureReason = "boss battle has no light-capacity-feasible plan for current known prefix";
                 phases.push_back({{"bossIndex", bossIndex},
                                   {"revealedHp", knownHPs[bossIndex]},
                                   {"knownBossHPsBeforeFight", knownHpJson(knownHPs, totalBossCount)},
                                   {"knownCount", static_cast<int>(knownHPs.size())},
                                   {"unknownBossCount", totalBossCount - static_cast<int>(knownHPs.size())},
-                                  {"hMax", hMax},
                                   {"turnStart", usedTurns},
                                   {"candidateScores", candidateScores},
                                   {"failed", true},
@@ -614,16 +966,17 @@ Json runBossBattleJson(const Json &source)
                        {"knownBossHPsBeforeFight", knownHpJson(knownHPs, totalBossCount)},
                        {"knownCount", static_cast<int>(knownHPs.size())},
                        {"unknownBossCount", totalBossCount - static_cast<int>(knownHPs.size())},
-                       {"hMax", hMax},
                        {"turnStart", usedTurns},
                        {"turns", plan.turns},
                        {"sequence", plan.sequence},
                        {"cooldownAfter", plan.cooldownAfter},
                        {"cooldownCostAfter", plan.cooldownCostAfter},
                        {"readyDamageAfter", plan.readyDamageAfter},
-                       {"robustScore", plan.robustScore},
+                       {"lightScore", plan.lightScore},
+                       {"remainingTurnsAfter", plan.remainingTurnsAfter},
+                       {"remainingUnknownBossCount", plan.remainingUnknownBossCount},
                        {"candidateScores", candidateScores},
-                       {"selectionReason", "max robust unknown suffix value"}};
+                       {"selectionReason", "max light suffix damage capacity under remaining turns"}};
             phases.push_back(std::move(phase));
 
             sequence.insert(sequence.end(), plan.sequence.begin(), plan.sequence.end());
@@ -653,7 +1006,7 @@ Json runBossBattleJson(const Json &source)
 
         attempts.push_back(attempt);
         Json result{{"ok", true},
-                    {"algorithm", "unknown_suffix_robust_value_boss_planner"},
+                    {"algorithm", "rolling_horizon_damage_capacity_boss_planner"},
                     {"sequence", sequence},
                     {"turns", usedTurns},
                     {"knowledgePolicy", "sequential_reveal_current_boss_only"},
@@ -673,22 +1026,23 @@ Json runBossBattleJson(const Json &source)
             result["withinMinRounds"] = usedTurns <= minRounds;
             result["matchesMinRounds"] = usedTurns == minRounds;
         }
-        return result;
+        return cacheAndReturn(result);
     }
 
-    return {{"ok", false},
-            {"error", "boss battle has no solution after revive-aware replanning"},
-            {"algorithm", "unknown_suffix_robust_value_boss_planner"},
-            {"knowledgePolicy", "sequential_reveal_current_boss_only"},
-            {"knownHpPersistenceImplemented", true},
-            {"initialKnownBossHPs", knownHpJson({bossHPs[0]}, totalBossCount)},
-            {"finalKnownBossHPs", knownHpJson(knownHPs, totalBossCount)},
-            {"attempts", attempts},
-            {"CoinConsumption", coinConsumption},
-            {"reviveRule",
-             {{"coinCost", coinConsumption},
-              {"restartPosition", "S"},
-              {"knownHpPersistence", "revealed boss HP remains known; unrevealed boss HP remains unknown"}}}};
+    return cacheAndReturn({{"ok", false},
+                            {"error", "boss battle has no solution after revive-aware replanning"},
+                           {"algorithm", "rolling_horizon_damage_capacity_boss_planner"},
+                           {"knowledgePolicy", "sequential_reveal_current_boss_only"},
+                           {"knownHpPersistenceImplemented", true},
+                           {"initialKnownBossHPs", knownHpJson({bossHPs[0]}, totalBossCount)},
+                           {"finalKnownBossHPs", knownHpJson(knownHPs, totalBossCount)},
+                           {"attempts", attempts},
+                           {"CoinConsumption", coinConsumption},
+                           {"reviveRule",
+                            {{"coinCost", coinConsumption},
+                             {"restartPosition", "S"},
+                             {"knownHpPersistence",
+                              "revealed boss HP remains known; unrevealed boss HP remains unknown"}}}});
 }
 
 } // namespace ai_player
