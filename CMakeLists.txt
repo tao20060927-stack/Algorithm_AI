@@ -23,6 +23,7 @@ add_library(ai_player_core STATIC
     src/AStarStrategy.cpp
     src/BossStrategy.cpp
     src/BranchBoundStrategy.cpp
+    src/ClosedSingletonLookaheadGate.cpp
     src/DijkstraStrategy.cpp
     src/DivideConquerStrategy.cpp
     src/PocketAwareGreedy.cpp
@@ -61,8 +62,14 @@ target_link_libraries(pocket_integration_tests PRIVATE ai_player_core)
 add_executable(mask_pose_tests src/MaskPoseEstimatorTest.cpp)
 target_link_libraries(mask_pose_tests PRIVATE ai_player_core)
 
+add_executable(closed_singleton_gate_tests src/ClosedSingletonLookaheadGateTest.cpp)
+target_link_libraries(closed_singleton_gate_tests PRIVATE ai_player_core)
+
 add_executable(batch_runner tools/batch_runner.cpp)
 target_link_libraries(batch_runner PRIVATE ai_player_core)
+
+add_executable(exact_test tools/exact_test.cpp)
+target_link_libraries(exact_test PRIVATE ai_player_core)
 
 add_executable(debug_runner tools/debug_runner.cpp)
 target_link_libraries(debug_runner PRIVATE ai_player_core)

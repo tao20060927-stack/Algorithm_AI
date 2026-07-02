@@ -82,6 +82,7 @@
     <ClCompile Include="src\AStarStrategy.cpp" />
     <ClCompile Include="src\BossStrategy.cpp" />
     <ClCompile Include="src\BranchBoundStrategy.cpp" />
+    <ClCompile Include="src\ClosedSingletonLookaheadGate.cpp" />
     <ClCompile Include="src\DesktopApp.cpp" />
     <ClCompile Include="src\DijkstraStrategy.cpp" />
     <ClCompile Include="src\DivideConquerStrategy.cpp" />
@@ -96,6 +97,7 @@
     <ClInclude Include="src\AStarStrategy.h" />
     <ClInclude Include="src\BossStrategy.h" />
     <ClInclude Include="src\BranchBoundStrategy.h" />
+    <ClInclude Include="src\ClosedSingletonLookaheadGate.h" />
     <ClInclude Include="src\DijkstraStrategy.h" />
     <ClInclude Include="src\DivideConquerStrategy.h" />
     <ClInclude Include="src\GameTypes.h" />

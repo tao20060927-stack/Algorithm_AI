@@ -481,8 +481,10 @@ private:
         const int debugAreaCap = std::max(1, static_cast<int>(std::ceil(activeAreaCap)));
         Position bestTarget = kInvalid;
         std::vector<Position> bestPath;
+        std::vector<ClosedSingletonGateCandidate> gateCandidates;
 
-        for (const auto &target : candidateTargets(localCurrent)) {
+        const auto targets = candidateTargets(localCurrent);
+        for (const auto &target : targets) {
             auto path = routePath(localCurrent, target);
             const double score = evaluator_.evaluate(path, target, context, localMap_, poseEstimator_);
             GreedyCandidateDebug item;
@@ -492,7 +494,8 @@ private:
             item.tile = localMap_.tile(target);
             item.score = score;
             item.deltaR = evaluator_.pathResourceDelta(path, localMap_);
-            const bool forceAreaMax = context.bossGatedAreaMaxTargets.count(target) > 0;
+            const bool forceAreaMax = context.bossGatedAreaMaxTargets.count(target) > 0 &&
+                                      poseEstimator_.unknownExtensionTouchesMazeEdge(target, localMap_);
             item.informationProxy =
                 evaluator_.informationProxy(target, localMap_, poseEstimator_, activeAreaCap, forceAreaMax);
             item.tailGain = evaluator_.futureGainMarginal(target, path, localMap_);
@@ -502,10 +505,23 @@ private:
             item.marginPenalty = item.projectedResource < 0 ? 0.0 : evaluator_.marginPenalty(item.projectedResource);
             hasNonNegativeTarget = hasNonNegativeTarget || (!path.empty() && item.projectedResource >= 0);
             item.unknownComponents = forceAreaMax
-                                         ? std::vector<int>{evaluator_.parameters().areaMax}
+                                         ? std::vector<int>{evaluator_.parameters().bossEdgeAreaBonus}
                                          : poseEstimator_.unknownComponentSizesTouchingView(target, localMap_, debugAreaCap);
             item.unknownComponentSum = 0;
             for (const int size : item.unknownComponents) item.unknownComponentSum += size;
+            ClosedSingletonGateCandidate gateCandidate;
+            gateCandidate.target = target;
+            gateCandidate.tile = item.tile;
+            gateCandidate.score = item.score;
+            gateCandidate.deltaR = item.deltaR;
+            gateCandidate.informationProxy = item.informationProxy;
+            gateCandidate.tailGain = item.tailGain;
+            gateCandidate.pathLength = item.pathLength;
+            gateCandidate.projectedResource = item.projectedResource;
+            gateCandidate.unknownComponentSum = item.unknownComponentSum;
+            gateCandidate.unknownComponents = item.unknownComponents;
+            gateCandidate.path = path;
+            gateCandidates.push_back(std::move(gateCandidate));
             if (!context.exitPath.empty() && context.exitPath.size() > 1) {
                 const auto targetToExit = routePath(target, localExit_);
                 if (!targetToExit.empty()) {
@@ -518,7 +534,37 @@ private:
             if (score > bestScore) {
                 bestScore = score;
                 bestTarget = target;
-                bestPath = std::move(path);
+                bestPath = path;
+            }
+        }
+
+        ClosedSingletonGateRequest gateRequest;
+        gateRequest.localCurrent = localCurrent;
+        gateRequest.localExit = localExit_;
+        gateRequest.context = context;
+        gateRequest.localMap = &localMap_;
+        gateRequest.poseEstimator = &poseEstimator_;
+        gateRequest.evaluator = &evaluator_;
+        gateRequest.candidates = gateCandidates;
+        const auto gateResult = applyClosedSingletonLookaheadGate(gateRequest);
+        debug.closedSingletonGate = gateResult.debug;
+        if (gateResult.hasSelection) {
+            bestTarget = gateResult.selectedTarget;
+            bestPath = gateResult.selectedPath;
+            bestScore = gateResult.selectedScore;
+            if (gateResult.changed && !context.exitPath.empty() && context.exitPath.size() > 1) {
+                hasWorthwhileTarget = false;
+                for (const auto &candidate : gateCandidates) {
+                    if (candidate.target == gateResult.debug.candidateA || candidate.score <= -1e17 ||
+                        candidate.path.empty()) {
+                        continue;
+                    }
+                    const auto targetToExit = routePath(candidate.target, localExit_);
+                    if (targetToExit.empty()) continue;
+                    const int detourCost = candidate.pathLength + static_cast<int>(targetToExit.size()) - 1 -
+                                           (static_cast<int>(context.exitPath.size()) - 1);
+                    hasWorthwhileTarget = hasWorthwhileTarget || candidate.score > debug.qEff * detourCost;
+                }
             }
         }
 

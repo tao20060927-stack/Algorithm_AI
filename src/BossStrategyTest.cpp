@@ -55,6 +55,39 @@ int main()
     require(result.at("reviveRule").value("restartPosition", "") == "S", "revive should restart from S");
     require(result.value("turns", 0) == 11, "cooldown-reserve sequential strategy should meet minRounds=11");
     require(result.value("withinMinRounds", false), "sample should be defeated within minRounds");
+    require(result.value("algorithm", "") == "unknown_suffix_robust_value_boss_planner",
+            "boss strategy should report robust-value planner");
+    require(result.value("knownHpPersistenceImplemented", false),
+            "boss strategy should implement known HP persistence across attempts");
+
+    const Json regressionInput{{"B", Json::array({11, 7, 18})},
+                               {"PlayerSkills", Json::array({Json::array({10, 1}), Json::array({11, 4}),
+                                                             Json::array({11, 5}), Json::array({3, 0}),
+                                                             Json::array({4, 4})})},
+                               {"minRounds", 4}};
+    const Json regression = runBossBattleJson(regressionInput);
+    require(regression.value("ok", false), "robust planner should solve [11,7,18] regression");
+    require(regression.value("turns", 0) == 4, "regression should be solved in four turns");
+    require(regression.value("withinMinRounds", false), "regression should satisfy minRounds=4");
+    const auto regressionSequence = regression.at("sequence").get<std::vector<int>>();
+    require((regressionSequence == std::vector<int>{1, 0, 2, 0} ||
+             regressionSequence == std::vector<int>{2, 0, 1, 0}),
+            "regression should use a legal robust four-turn sequence");
+    require(regression.at("finalKnownBossHPs") == Json::array({11, 7, 18}),
+            "regression should reveal and persist all boss HPs");
+
+    const Json hiddenFutureA = regressionInput;
+    const Json hiddenFutureB{{"B", Json::array({11, 99, 99})},
+                             {"PlayerSkills", regressionInput.at("PlayerSkills")},
+                             {"minRounds", 4}};
+    const Json hiddenA = runBossBattleJson(hiddenFutureA);
+    const Json hiddenB = runBossBattleJson(hiddenFutureB);
+    require(hiddenA.at("attempts")[0].at("phases")[0].at("candidateScores") ==
+                hiddenB.at("attempts")[0].at("phases")[0].at("candidateScores"),
+            "first boss candidate scores must not depend on unrevealed future HPs");
+    require(hiddenA.at("attempts")[0].at("phases")[0].at("sequence") ==
+                hiddenB.at("attempts")[0].at("phases")[0].at("sequence"),
+            "first boss selected sequence must not depend on unrevealed future HPs");
 
     const Json reviveInput{{"maze",
                             Json::array({Json::array({"#", "#", "#", "#", "#"}),
@@ -75,6 +108,5 @@ int main()
     require(sawRevive, "failed boss battle with enough resource should emit boss_revive event");
 
     std::cout << "boss_strategy_tests.ok=1\n";
-    std::cout << result.dump() << "\n";
     return 0;
 }

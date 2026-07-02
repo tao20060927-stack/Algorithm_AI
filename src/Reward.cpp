@@ -651,6 +651,66 @@ std::vector<int> MapPoseEstimator::unknownComponentSizesTouchingView(Position lo
 }
 
 /**
+ * 功能：判断目标格的未知延伸区域是否能触达当前可确认的迷宫边缘。
+ * 输入：
+ *   - localTarget：候选目标的局部坐标。
+ *   - localMap：AI 当前局部记忆地图，已观察格会作为 BFS 障碍。
+ * 输出：
+ *   - 如果从目标附近的未知区域可以扩展到掩码或部分边缘，返回 true；否则返回 false。
+ * 关键逻辑：
+ *   - 使用与 |C| 计算一致的 BFS 模型：已观察格不可穿过，未知格可扩展。
+ *   - 只有触达当前已知的迷宫边缘时才返回 true；掩码未提供边缘信息时不会凭空推断。
+ */
+bool MapPoseEstimator::unknownExtensionTouchesMazeEdge(Position localTarget, const LocalKnownMap &localMap) const
+{
+    if (!maskActive_ && seedKind_ == MaskSeedKind::Internal) return false;
+    if (maskActive_ && !isInsideEstimatedMaze(localTarget)) return false;
+
+    const auto observedPositions = localMap.observedPositions();
+    std::set<Position> observed(observedPositions.begin(), observedPositions.end());
+    const auto blockedByMaskBoundary = [&](Position pos) {
+        const Position mapped = localToEstimatedGlobal(pos);
+        if (maskActive_) {
+            if (!insideEstimated(mapped)) return true;
+            return mapped.first == 0 || mapped.second == 0 || mapped.first == kEstimatedSize - 1 ||
+                   mapped.second == kEstimatedSize - 1;
+        }
+        switch (seedKind_) {
+        case MaskSeedKind::Top:
+        case MaskSeedKind::Bottom:
+            return mapped.first <= 0 || mapped.first >= kEstimatedSize - 1;
+        case MaskSeedKind::Left:
+        case MaskSeedKind::Right:
+            return mapped.second <= 0 || mapped.second >= kEstimatedSize - 1;
+        default:
+            return false;
+        }
+    };
+    if (blockedByMaskBoundary(localTarget)) return true;
+
+    std::set<Position> visited;
+    std::queue<Position> queue;
+    queue.push(localTarget);
+    visited.insert(localTarget);
+    const size_t searchLimit = static_cast<size_t>(kEstimatedSize * kEstimatedSize);
+    while (!queue.empty()) {
+        const auto [row, col] = queue.front();
+        queue.pop();
+        for (const auto [dr, dc] : kDirs) {
+            const Position next{row + dr, col + dc};
+            if (blockedByMaskBoundary(next)) return true;
+            if (visited.count(next) || observed.count(next)) continue;
+            // 掩码未完全激活时，未知区域不能被当成无限平面搜索；超过 15x15 假设容量仍未触边，
+            // 说明当前记忆不足以可靠证明通向边缘，按不触边处理，避免 BFS 无界扩展。
+            if (!maskActive_ && visited.size() >= searchLimit) return false;
+            visited.insert(next);
+            queue.push(next);
+        }
+    }
+    return false;
+}
+
+/**
  * 功能：按指定候选嵌入映射局部坐标。
  * 输入：
  *   - localPos：局部坐标。
@@ -754,12 +814,12 @@ bool PathValueEvaluator::pathKeepsResourceNonNegative(const std::vector<Position
  *   - localMap：局部记忆地图。
  *   - poseEstimator：姿态估计器；只有掩码已完全确定时才用它裁剪 |C|。
  *   - areaCap：|C| 面积奖励上限；出口未知时通常为 Amax，出口已知后可降到 1.5。
- *   - forceAreaMax：是否把该目标的 |C| 强制按 Amax 处理。
+ *   - forceAreaMax：是否允许目标在未知延伸触达迷宫边缘时使用 Boss 边缘奖励。
  * 输出：
  *   - 返回按当前价值密度估计后的未知连通块贡献。
  * 关键逻辑：
  *   - |C| 由局部记忆地图 BFS 得到；掩码未启用时不裁剪，掩码启用后不允许 BFS 展开到掩码外部。
- *   - 对必须踏过 Boss 才能继续到达的通关推进区域，直接按 Amax 计入，避免边缘出口被面积裁剪误判为无价值。
+ *   - 对必须踏过 Boss 才能继续到达的通关推进区域，只有未知延伸能触达迷宫边缘时才按 bossEdgeAreaBonus 计入。
  */
 double PathValueEvaluator::informationProxy(Position target, const LocalKnownMap &localMap,
                                             const MapPoseEstimator &poseEstimator, double areaCap,
@@ -783,8 +843,8 @@ double PathValueEvaluator::informationProxy(Position target, const LocalKnownMap
     const double activeAreaCap = areaCap > 0.0 ? areaCap : static_cast<double>(parameters_.areaMax);
     const int searchAreaCap = std::max(1, static_cast<int>(std::ceil(activeAreaCap)));
     double componentValue = 0.0;
-    if (forceAreaMax) {
-        componentValue = static_cast<double>(parameters_.areaMax) * areaValueDensity;
+    if (forceAreaMax && poseEstimator.unknownExtensionTouchesMazeEdge(target, localMap)) {
+        componentValue = static_cast<double>(parameters_.bossEdgeAreaBonus) * areaValueDensity;
     } else {
         for (const int size : poseEstimator.unknownComponentSizesTouchingView(target, localMap, searchAreaCap)) {
             componentValue += std::min(static_cast<double>(size), activeAreaCap) * areaValueDensity;
@@ -910,7 +970,7 @@ double PathValueEvaluator::updateAlphaSmooth(double previousAlpha, const LocalKn
  *   - 若路径任意前缀会让资源变负，说明 AI 实际执行时会进入非法状态，直接判为负无穷。
  *   - 若 DeltaR、I_proxy、tailUB 都为 0，说明目标没有任何收益来源，直接判为负无穷。
  *   - 其余情况使用 DeltaR + omegaI*alpha*I + beta*tailUB - qEffLengthWeight*qEff*len - margin，不加入最近访问惩罚。
- *   - 如果目标位于 Boss-gated 区域，I_proxy 的 |C| 按 Amax 计算，用于表达“踏过 Boss 后可能继续通向出口”的推进价值。
+ *   - 如果目标位于 Boss-gated 区域且未知延伸触达迷宫边缘，I_proxy 的 |C| 按 bossEdgeAreaBonus 计算。
  */
 double PathValueEvaluator::evaluate(const std::vector<Position> &path, Position target,
                                     const PathValueContext &context, const LocalKnownMap &localMap,
@@ -931,7 +991,7 @@ double PathValueEvaluator::evaluate(const std::vector<Position> &path, Position 
                                                                   : parameters_.knownExitAreaCap,
                                          context.bossGatedAreaMaxTargets.count(target) > 0);
     const double tail = futureGainMarginal(target, path, localMap);
-    if (delta < 0 && info == 0.0) return -1e18;
+    if (delta <= 0 && info == 0.0) return -1e18;
     const double qEff = computeQEff(context, localMap);
     const double margin = marginPenalty(projectedResource);
     return delta + parameters_.omegaI * context.state.alphaSmooth * info + parameters_.beta * tail -

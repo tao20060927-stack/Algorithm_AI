@@ -25,6 +25,7 @@ struct RewardParameters {
     double beta = reward_config::kBeta;
     double kappaU = reward_config::kKappaU;
     int areaMax = reward_config::kAreaMax;
+    int bossEdgeAreaBonus = reward_config::kBossEdgeAreaBonus;
     double knownExitAreaCap = reward_config::kKnownExitAreaCap;
     double rhoAreaValueMin = reward_config::kRhoAreaValueMin;
     double qMin = reward_config::kQMin;
@@ -32,6 +33,8 @@ struct RewardParameters {
     int safeResource = reward_config::kSafeResource;
     double lambdaMargin = reward_config::kLambdaMargin;
     double switchMargin = reward_config::kSwitchMargin;
+    double gammaClosedSingleton = reward_config::kGammaClosedSingleton;
+    double marginClosedSingleton = reward_config::kMarginClosedSingleton;
     int pocketRadius = reward_config::kPocketRadius;
     double pocketMu = reward_config::kPocketMu;
     double pocketLambdaRemain = reward_config::kPocketLambdaRemain;
@@ -101,6 +104,7 @@ public:
     int estimatedObservedCount() const;
     std::vector<int> unknownComponentSizesTouchingView(Position localTarget, const LocalKnownMap &localMap,
                                                        int areaMax) const;
+    bool unknownExtensionTouchesMazeEdge(Position localTarget, const LocalKnownMap &localMap) const;
 
 private:
     static constexpr int kEstimatedSize = 15;

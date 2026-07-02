@@ -43,7 +43,7 @@ inline constexpr double kAlpha0 = 4.0;
 
 // alphaMin / alphaMax 位于 clip(alpha_t_raw, alphaMin, alphaMax)，限制探索权重上下界。
 inline constexpr double kAlphaMin = 1.0;
-inline constexpr double kAlphaMax = 8.0;
+inline constexpr double kAlphaMax = 5.5;
 
 // theta 位于 alpha_t_smooth，控制动态探索权重的平滑程度，越大越不容易剧烈波动。
 inline constexpr double kTheta = 0.8;
@@ -56,6 +56,9 @@ inline constexpr double kKappaU = 60;
 
 // areaMax 位于 min(|C|, areaMax) * rho_area_value，限制单个未知连通块按多少个未知格计算潜在价值。
 inline constexpr int kAreaMax = 12;
+
+// bossEdgeAreaBonus 位于 Boss-gated 且未知延伸触达迷宫边缘时的 |C| 替代值，略高于普通 areaMax。
+inline constexpr int kBossEdgeAreaBonus = 15;
 
 // knownExitAreaCap 位于出口已知后的 min(|C|, knownExitAreaCap)，削弱开阔未知区域的面积奖励。
 inline constexpr double kKnownExitAreaCap = 1.5;
@@ -77,6 +80,12 @@ inline constexpr double kLambdaMargin = 8.0;
 
 // switchMargin 位于目标保持条件 Score(best) > Score(currentTarget) + switchMargin，防止目标频繁横跳。
 inline constexpr double kSwitchMargin = 5.0;
+
+// gammaClosedSingleton 位于 Closed Singleton Gate 的 reward(A)+gamma*c_A，控制 A 后续止损价值权重。
+inline constexpr double kGammaClosedSingleton = 1.0;
+
+// marginClosedSingleton 位于 Closed Singleton Gate 的 reward(B)+margin，控制拒绝封闭小节点的保守程度。
+inline constexpr double kMarginClosedSingleton = -20;
 
 // pocketRadius 位于局部资源口袋识别 d(h,g)<=pocketRadius，控制一个 hub 附近多远的金币会被视为同一口袋。
 inline constexpr int kPocketRadius = 2;

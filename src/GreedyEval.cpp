@@ -88,7 +88,7 @@ MazeData parseMaze(const std::string &inputJson)
 /**
  * 功能：把 JSON 参数覆盖到 RewardParameters。
  * 输入：
- *   - paramsJson：可为空的参数 JSON 字符串或参数 JSON 文件路径，支持 omegaI、beta、lambdaMargin、kappaU、areaMax、rhoAreaValueMin、qEffLengthWeight。
+ *   - paramsJson：可为空的参数 JSON 字符串或参数 JSON 文件路径，支持 omegaI、beta、lambdaMargin、kappaU、areaMax、rhoAreaValueMin、qEffLengthWeight、gammaClosedSingleton、marginClosedSingleton。
  * 输出：
  *   - 返回覆盖后的 RewardParameters。
  * 关键逻辑：
@@ -121,6 +121,12 @@ RewardParameters parseParameters(const std::string &paramsJson)
     }
     if (source.contains("qEffLengthWeight")) {
         parameters.qEffLengthWeight = source["qEffLengthWeight"].get<double>();
+    }
+    if (source.contains("gammaClosedSingleton")) {
+        parameters.gammaClosedSingleton = source["gammaClosedSingleton"].get<double>();
+    }
+    if (source.contains("marginClosedSingleton")) {
+        parameters.marginClosedSingleton = source["marginClosedSingleton"].get<double>();
     }
     return parameters;
 }

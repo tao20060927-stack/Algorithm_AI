@@ -17,6 +17,7 @@
 
 using ai_player::Json;
 using ai_player::MazeData;
+using ai_player::ClosedSingletonGateDebug;
 using ai_player::PocketCandidateDebug;
 using ai_player::PocketDebug;
 using ai_player::Position;
@@ -135,6 +136,29 @@ Json greedyRejectedDebugJson(const GreedyRejectedDebug &candidate)
             {"pathLen", candidate.pathLength}};
 }
 
+Json closedSingletonGateDebugJson(const ClosedSingletonGateDebug &gate)
+{
+    Json row = {{"checked", gate.checked},
+                {"triggered", gate.triggered},
+                {"candidateA", positionJson(gate.candidateA)},
+                {"candidateAType", gate.candidateAType},
+                {"componentSizeA", gate.componentSizeA},
+                {"isClosedSingletonA", gate.isClosedSingletonA},
+                {"rewardA", gate.rewardA},
+                {"bestNonClosedB", positionJson(gate.bestNonClosedB)},
+                {"rewardB", gate.rewardB},
+                {"simulatedAfterA", gate.simulatedAfterA},
+                {"bestAfterATarget", positionJson(gate.bestAfterATarget)},
+                {"bestAfterAReward", gate.bestAfterAReward},
+                {"gamma", gate.gamma},
+                {"margin", gate.margin},
+                {"combinedA", gate.combinedA},
+                {"allowed", gate.allowed},
+                {"reason", gate.reason}};
+    if (!gate.disabledReason.empty()) row["disabledReason"] = gate.disabledReason;
+    return row;
+}
+
 Json pocketCandidateDebugJson(const PocketCandidateDebug &candidate)
 {
     return {{"target", positionJson(candidate.target)},
@@ -194,6 +218,7 @@ Json greedyStepDebugJson(const GreedyStepDebug &step)
             {"selectedReal", positionJson(step.selectedReal)},
             {"candidates", candidates},
             {"rejected", rejected},
+            {"closedSingletonGate", closedSingletonGateDebugJson(step.closedSingletonGate)},
             {"pocket", pocketDebugJson(step.pocket)}};
 }
 

@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "ClosedSingletonLookaheadGate.h"
 #include "PocketAwareGreedy.h"
 #include "Reward.h"
 
@@ -45,6 +46,7 @@ struct GreedyStepDebug {
     Position selectedReal{kInvalid};
     std::vector<GreedyCandidateDebug> candidates;
     std::vector<GreedyRejectedDebug> rejected;
+    ClosedSingletonGateDebug closedSingletonGate;
     PocketDebug pocket;
 };
 
