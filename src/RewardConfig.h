@@ -32,7 +32,7 @@ namespace ai_player::reward_config {
  */
 
 // omegaI 位于 omegaI * alpha_t_smooth * I_proxy(t)，控制探索信息价值在总分中的权重。
-inline constexpr double kOmegaI = 0.175;
+inline constexpr double kOmegaI = 0.0563;
 
 // alpha0 位于 alpha_t_raw，是动态探索权重的基准值。
 inline constexpr double kAlpha0 = 4.0;
@@ -45,7 +45,7 @@ inline constexpr double kAlphaMax = 5.5;
 inline constexpr double kTheta = 0.8;
 
 // beta 位于 beta * FutureGain_marg_tailUB(t)，控制后续金币机会上界的影响；当前只作为弱 tail 上界。
-inline constexpr double kBeta = 1.23;
+inline constexpr double kBeta = 1.12;
 
 // kappaU 位于 I_proxy(t)，控制未知连通块面积价值对探索信息价值的贡献。
 inline constexpr double kKappaU = 60;
@@ -69,7 +69,7 @@ inline constexpr double kQMin = 1.0;
 inline constexpr double kQMax = 4.5;
 
 // qEffLengthWeight 位于 qEffLengthWeight * q_eff * len(path_t)，控制路径长度机会成本项的整体权重。
-inline constexpr double kQEffLengthWeight = 0.82;
+inline constexpr double kQEffLengthWeight = 1.186;
 
 // switchMargin 位于目标保持条件 Score(best) > Score(currentTarget) + switchMargin，防止目标频繁横跳。
 inline constexpr double kSwitchMargin = 5.0;
