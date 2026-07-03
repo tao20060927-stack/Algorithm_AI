@@ -19,7 +19,7 @@ namespace ai_player::reward_config {
  *
  * v_area = 50 * rhoG - 30 * rhoT
  *
- * q_eff = max(q_ref, qMin)
+ * q_eff = min(max(q_ref, qMin), qMax)
  *
  * alpha_t_raw =
  *     alpha0
@@ -54,7 +54,7 @@ inline constexpr double kKappaU = 60;
 inline constexpr int kAreaMax = 12;
 
 // bossEdgeAreaBonus 位于 Boss-gated 目标的 |C| 替代值，略高于普通 areaMax。
-inline constexpr int kBossEdgeAreaBonus = 15;
+inline constexpr int kBossEdgeAreaBonus = 13;
 
 // knownExitAreaCap 位于出口已知后的 min(|C|, knownExitAreaCap)，削弱开阔未知区域的面积奖励。
 inline constexpr double kKnownExitAreaCap = 1.5;
@@ -62,8 +62,11 @@ inline constexpr double kKnownExitAreaCap = 1.5;
 // rhoAreaValueMin 位于 rho_area_value 的 clip 下界，避免价值密度被压到完全没有探索收益。
 inline constexpr double kRhoAreaValueMin = 0.001;
 
-// qMin 位于 q_eff = max(q_ref, qMin)，保证开局资源为 0 时路径长度仍有基础代价。
+// qMin 位于 q_eff = min(max(q_ref, qMin), qMax)，保证开局资源为 0 时路径长度仍有基础代价。
 inline constexpr double kQMin = 1.0;
+
+// qMax 位于 q_eff = min(max(q_ref, qMin), qMax)，防止高资源状态下路径长度代价过度放大。
+inline constexpr double kQMax = 4.5;
 
 // qEffLengthWeight 位于 qEffLengthWeight * q_eff * len(path_t)，控制路径长度机会成本项的整体权重。
 inline constexpr double kQEffLengthWeight = 0.82;

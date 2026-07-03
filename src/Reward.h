@@ -31,6 +31,7 @@ struct RewardParameters {
     double knownExitAreaCap = reward_config::kKnownExitAreaCap;// 出口已知后 |C| 面积裁剪上限，削弱开阔区域探索奖励
     double rhoAreaValueMin = reward_config::kRhoAreaValueMin; // ρ_area_value 的 clip 下界，避免价值密度被压到零
     double qMin = reward_config::kQMin;                       // q_eff 下限，保证开局 R=0 时路径长度仍有基础代价
+    double qMax = reward_config::kQMax;                       // q_eff 上限，防止高资源状态下路径长度代价过度放大
     double qEffLengthWeight = reward_config::kQEffLengthWeight;// 路径长度代价项的全局缩放系数 η_q，乘在 q_eff × len 前
     double switchMargin = reward_config::kSwitchMargin;       // 目标保持切换阈值，新目标需比旧目标高出此分数才换
     double gammaClosedSingleton = reward_config::kGammaClosedSingleton;// Closed Singleton Gate 的 c_A 权重 γ
@@ -99,6 +100,7 @@ class MapPoseEstimator {
 public:
     MapPoseEstimator();                                                          // 构造并初始化多入口假设
     void initialize();                                                           // 重置所有假设（四条边各 5 个偏移入口）
+    void setMaskEnabled(bool enabled);                                            // 控制是否允许启用 15x15 掩码机制
     void update(const LocalKnownMap &localMap, Position localCurrent);           // 用最新观察更新最佳假设
     MapEmbeddingHypothesis best() const;                                         // 返回当前评分最高的可行入口假设
     bool isMaskActive() const;                                                   // 掩码是否已完全确定并启用（localMap 跨度覆盖 15 格）
@@ -120,6 +122,7 @@ private:
     std::vector<MapEmbeddingHypothesis> hypotheses_;  // 所有候选入口假设（四条边界各 5 个位置 × 4 方向 = 20 个）
     MapEmbeddingHypothesis best_;                     // 当前评分最高的可行假设
     std::set<Position> observedEstimated_;            // 当前最佳假设下映射去重后的已观察估计坐标
+    bool maskEnabled_ = true;                         // 是否允许启用 15x15 掩码机制，非 15x15 迷宫会关闭
     bool maskSeeded_ = false;                         // 是否已根据出生观察确定了 seedKind_
     bool maskActive_ = false;                         // 完整 15x15 掩码是否已启用（localMap 跨度覆盖 15 格）
     MaskSeedKind seedKind_ = MaskSeedKind::Internal;  // 出生点位于迷宫边界的哪一侧
@@ -161,7 +164,7 @@ public:
     double futureGainMarginal(Position target, const std::vector<Position> &path,
                               const LocalKnownMap &localMap) const;
 
-    // 计算 q_eff：路径步数代价系数 = max(q_ref, q_min)
+    // 计算 q_eff：路径步数代价系数 = min(max(q_ref, q_min), q_max)
     double computeQEff(const PathValueContext &context, const LocalKnownMap &localMap) const;
 
     // 根据当前观察统计更新平滑动态 α

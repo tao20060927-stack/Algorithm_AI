@@ -214,7 +214,7 @@ $("sample1").onclick=()=>loadSample(sample1);
 $("sample2").onclick=()=>loadSample(sample2);
 $("sample3").onclick=()=>{$("algorithm").value="resource_pickup";loadSample(sample3)};
 $("loadJson").onclick=()=>{try{loadInputJson()}catch(e){setState(e.message)}};
-$("validate").onclick=async()=>{try{const parsed=parseInputMaze();const out=Array.isArray(parsed.data.grid)?await call("RunResourcePickup",parsed.input):await call("ValidateMaze",parsed.input);setView("boss");$("bossEventSummary").innerHTML="";$("bossEventTimeline").innerHTML=`<div class="diagnosis"><pre>${esc(JSON.stringify(out,null,2))}</pre></div>`;$("bossEventTable").innerHTML="";setState(out.ok?"校验通过":"校验失败")}catch(e){setState(e.message)}};
+$("validate").onclick=async()=>{try{const parsed=parseInputMaze();const out=Array.isArray(parsed.data.grid)?await call("RunResourcePickup",parsed.input):await call("ValidateMaze",parsed.input);if(viewMode=="score"){$("debugSummary").innerHTML="";$("debugDiagnosis").textContent=out.ok?"校验通过":"校验失败";$("debugTable").innerHTML=`<div class="diagnosis"><pre>${esc(JSON.stringify(out,null,2))}</pre></div>`}setState(out.ok?"校验通过":"校验失败")}catch(e){setState(e.message)}};
 $("viewBoard").onclick=()=>setView("board");
 $("viewScore").onclick=()=>setView("score");
 $("viewBoss").onclick=()=>setView("boss");

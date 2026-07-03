@@ -352,12 +352,33 @@ void MapPoseEstimator::initialize()
     best_ = hypotheses_[0];
     // 清空已观察估计坐标集 — 掩码未激活，observedEstimated_ 为空是合理的。
     observedEstimated_.clear();
+    // 默认允许 15x15 掩码；非 15x15 迷宫会在 AI 启动前显式关闭。
+    maskEnabled_ = true;
     // 出生边缘种子尚未检测，等待首次 update() 调用。
     maskSeeded_ = false;
     // 掩码未激活 — I_proxy 的 BFS 不会被 15×15 边界裁剪。
     maskActive_ = false;
     // 默认认为 AI 出生在迷宫内部（无边缘信息）。
     seedKind_ = MaskSeedKind::Internal;
+}
+
+/**
+ * 功能：控制是否启用 15x15 掩码机制。
+ * 输入：
+ *   - enabled：true 表示允许根据局部观察启动 15x15 掩码；false 表示完全关闭掩码。
+ * 输出：
+ *   - 无返回值，更新 MapPoseEstimator 的内部开关。
+ * 关键逻辑：
+ *   - 非 15x15 迷宫不能套用固定 15x15 边界，否则 I_proxy 会被错误裁剪。
+ *   - 关闭时同时清除已激活状态和边缘种子，使后续未知区域 BFS 不受 15x15 边界影响。
+ */
+void MapPoseEstimator::setMaskEnabled(bool enabled)
+{
+    maskEnabled_ = enabled;
+    if (!maskEnabled_) {
+        maskActive_ = false;
+        seedKind_ = MaskSeedKind::Internal;
+    }
 }
 
 /**
@@ -375,6 +396,15 @@ void MapPoseEstimator::update(const LocalKnownMap &localMap, Position localCurre
 {
     // 获取当前已观察格列表，后续所有步骤都依赖此数据。
     const auto observed = localMap.observedPositions();
+    if (!maskEnabled_) {
+        // 非 15x15 迷宫关闭固定掩码：仍记录已观察数量，供 alpha 和前端监控使用；
+        // 但不做入口假设、边缘种子或 15x15 边界裁剪，避免错误限制未知区域展开。
+        maskActive_ = false;
+        seedKind_ = MaskSeedKind::Internal;
+        observedEstimated_.clear();
+        for (const auto &pos : observed) observedEstimated_.insert(pos);
+        return;
+    }
     // ===== 阶段 1：出生边缘种子检测（仅首次调用时执行） =====
     // 通过出生点周围 3x3 视野中的 outside（越界）格判断 AI 从迷宫哪条边进入。
     // 例如：顶部有越界格 + 左边有越界格 → AI 出生在左上角。
@@ -614,7 +644,7 @@ bool MapPoseEstimator::isInsideEstimatedMaze(Position localPos) const
  */
 int MapPoseEstimator::estimatedUnknownCount() const
 {
-    return kEstimatedSize * kEstimatedSize - estimatedObservedCount();
+    return std::max(0, kEstimatedSize * kEstimatedSize - estimatedObservedCount());
 }
 
 /**
@@ -999,9 +1029,10 @@ double PathValueEvaluator::computeQEff(const PathValueContext &context, const Lo
         qRef = static_cast<double>(context.state.resource + exitDelta) /
                (context.state.steps + pathLength(context.exitPath) + parameters_.epsilon);
     }
-    // q_eff = max(q_ref, q_min)：取 q_ref 和 qMin (1.0) 的较大值。
+    // q_eff = min(max(q_ref, q_min), q_max)：先保证最低步数代价，再限制最高机会成本。
     // qMin 防止开局 R=0 时 q_ref=0，导致路径长度代价完全消失。
-    return std::max(qRef, parameters_.qMin);
+    // qMax 防止高资源状态下 q_eff 过大，导致正常探索路径被步数代价过度压低。
+    return std::min(std::max(qRef, parameters_.qMin), parameters_.qMax);
 }
 
 /**

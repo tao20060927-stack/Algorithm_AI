@@ -38,6 +38,10 @@ public:
         : maze_(maze), routeAlgorithm_(routeAlgorithm), evaluator_(parameters)
     {
         poseEstimator_.initialize();
+        const bool isFifteenByFifteen =
+            maze_.grid.size() == 15 &&
+            std::all_of(maze_.grid.begin(), maze_.grid.end(), [](const auto &row) { return row.size() == 15; });
+        poseEstimator_.setMaskEnabled(isFifteenByFifteen);
         bossBattleResult_ = runBossBattleJson(maze_.source);
         bossBattleCanWin_ = bossBattleResult_.value("ok", false);
         if (bossBattleResult_.contains("withinMinRounds")) {
