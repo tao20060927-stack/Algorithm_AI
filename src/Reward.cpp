@@ -965,7 +965,7 @@ double PathValueEvaluator::informationProxy(Position target, const LocalKnownMap
             componentValue += std::min(static_cast<double>(size), activeAreaCap) * areaValueDensity;
         }
     }
-    // 第六步：乘以 kappaU (60) 得到最终 I_proxy。
+    // 第六步：乘以 kappaU  得到最终 I_proxy。
     // kappaU 将"等效未知格数"映射到与金币同一量级的奖励空间。
     return parameters_.kappaU * componentValue;
 }

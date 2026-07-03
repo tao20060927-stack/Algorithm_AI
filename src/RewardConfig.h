@@ -32,7 +32,7 @@ namespace ai_player::reward_config {
  */
 
 // omegaI 位于 omegaI * alpha_t_smooth * I_proxy(t)，控制探索信息价值在总分中的权重。
-inline constexpr double kOmegaI = 0.0563;
+inline constexpr double kOmegaI = 0.0134;
 
 // alpha0 位于 alpha_t_raw，是动态探索权重的基准值。
 inline constexpr double kAlpha0 = 4.0;
@@ -45,22 +45,22 @@ inline constexpr double kAlphaMax = 5.5;
 inline constexpr double kTheta = 0.8;
 
 // beta 位于 beta * FutureGain_marg_tailUB(t)，控制后续金币机会上界的影响；当前只作为弱 tail 上界。
-inline constexpr double kBeta = 1.12;
+inline constexpr double kBeta = 1.518;
 
 // kappaU 位于 I_proxy(t)，控制未知连通块面积价值对探索信息价值的贡献。
-inline constexpr double kKappaU = 60;
+inline constexpr double kKappaU = 71;
 
 // areaMax 位于 min(|C|, areaMax) * rho_area_value，限制单个未知连通块按多少个未知格计算潜在价值。
-inline constexpr int kAreaMax = 12;
+inline constexpr int kAreaMax = 14;
 
 // bossEdgeAreaBonus 位于 Boss-gated 目标的 |C| 替代值，略高于普通 areaMax。
-inline constexpr int kBossEdgeAreaBonus = 13;
+inline constexpr int kBossEdgeAreaBonus = 15;
 
 // knownExitAreaCap 位于出口已知后的 min(|C|, knownExitAreaCap)，削弱开阔未知区域的面积奖励。
 inline constexpr double kKnownExitAreaCap = 1.5;
 
 // rhoAreaValueMin 位于 rho_area_value 的 clip 下界，避免价值密度被压到完全没有探索收益。
-inline constexpr double kRhoAreaValueMin = 0.001;
+inline constexpr double kRhoAreaValueMin = 0.00964;
 
 // qMin 位于 q_eff = min(max(q_ref, qMin), qMax)，保证开局资源为 0 时路径长度仍有基础代价。
 inline constexpr double kQMin = 1.0;
@@ -69,7 +69,7 @@ inline constexpr double kQMin = 1.0;
 inline constexpr double kQMax = 4.5;
 
 // qEffLengthWeight 位于 qEffLengthWeight * q_eff * len(path_t)，控制路径长度机会成本项的整体权重。
-inline constexpr double kQEffLengthWeight = 1.186;
+inline constexpr double kQEffLengthWeight = 0.6597;
 
 // switchMargin 位于目标保持条件 Score(best) > Score(currentTarget) + switchMargin，防止目标频繁横跳。
 inline constexpr double kSwitchMargin = 5.0;

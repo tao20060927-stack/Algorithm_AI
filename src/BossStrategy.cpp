@@ -735,7 +735,9 @@ Json runBossBattleJson(const Json &source)
 
     const int minRounds = readMinRounds(source);
     const int totalBossCount = static_cast<int>(bossHPs.size());
-    const int maxAttempts = source.value("maxBossAttempts", std::max(1, totalBossCount));
+    // 默认至少生成两次尝试，保证迷宫流程能表达"第一次失败 -> 扣金币复活 -> 第二次重新打 Boss"。
+    // 如果输入显式提供 maxBossAttempts，则以输入为准。
+    const int maxAttempts = source.value("maxBossAttempts", std::max(2, totalBossCount));
     const int coinConsumption = readCoinConsumption(source);
 
     // 初始已知血量：按顺序揭示规则，一开始只知道第一只 Boss 的血量

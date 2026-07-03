@@ -112,14 +112,19 @@ int main()
                            {"B", Json::array({100})},
                            {"PlayerSkills", Json::array({Json::array({1, 0})})},
                            {"minRounds", 1},
-                           {"CoinConsumption", 9}};
+                           {"CoinConsumption", 1}};
     AIPlayerEngine engine;
     const Json reviveResult = Json::parse(engine.RunRealtimeGreedy(reviveInput.dump()));
     bool sawRevive = false;
+    bool sawSecondAttempt = false;
     for (const auto &event : reviveResult.at("events")) {
         if (event.value("type", "") == "boss_revive") sawRevive = true;
+        if (event.value("type", "") == "boss_game_over" && event.value("attemptIndex", -1) == 1) {
+            sawSecondAttempt = true;
+        }
     }
     require(sawRevive, "failed boss battle with enough resource should emit boss_revive event");
+    require(sawSecondAttempt, "revived player should return to S and trigger the next boss attempt");
 
     std::cout << "boss_strategy_tests.ok=1\n";
     return 0;

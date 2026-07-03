@@ -258,58 +258,110 @@ Json buildResult(const MazeData &data, const std::vector<Position> &path, const 
 {
     Json result{{"ok", true}, {"mode", mode}, {"path", Json::array()}, {"frames", Json::array()}, {"events", Json::array()}};
     const Json boss = runBossBattleJson(data.source);
+    const Json bossAttempts = boss.contains("attempts") && boss["attempts"].is_array() ? boss["attempts"] : Json::array();
     std::vector collected(data.grid.size(), std::vector<bool>(data.grid[0].size(), false));
-    const bool bossCanWin = bossBattleCanWinWithinLimit(boss);
     const int reviveCost = boss.value("CoinConsumption", 0);
+    int bossAttemptIndex = 0;
+    int reviveCount = 0;
     bool bossCleared = false;
     bool gameOver = false;
     int resource = 0;
+    int steps = 0;
 
-    for (size_t step = 0; step < path.size(); ++step) {
-        const auto [row, col] = path[step];
+    for (size_t pathIndex = 0; pathIndex < path.size();) {
+        const auto [row, col] = path[pathIndex];
         const std::string tile = data.grid[row][col];
         int delta = 0;
         int paidReviveCost = 0;
         std::string frameEvent;
+        bool reviveToStart = false;
+        if (pathIndex > 0) ++steps;
         if (!collected[row][col]) {
             delta = scoreDelta(tile);
             resource += delta;
             collected[row][col] = true;
         }
         if (isBossTriggerCell(data, {row, col}) && !bossCleared) {
-            if (bossCanWin) {
+            // BossStrategy 已经按"失败后保留已揭示血量"生成 attempts。
+            // 这里按顺序消费当前 attempt，不能用最终 ok 结果直接覆盖第一次战斗。
+            const bool hasAttempt = bossAttemptIndex < static_cast<int>(bossAttempts.size());
+            const Json attempt = hasAttempt ? bossAttempts[bossAttemptIndex] : Json::object();
+            const bool attemptFailed = hasAttempt ? attempt.value("failed", false) : !bossBattleCanWinWithinLimit(boss);
+            const bool attemptCanWin = !attemptFailed && bossBattleCanWinWithinLimit(boss);
+            if (attemptCanWin) {
                 frameEvent = "boss";
-                result["events"].push_back({{"step", step}, {"type", "boss"}, {"result", boss}});
+                result["events"].push_back({{"step", result["frames"].size()},
+                                            {"type", "boss"},
+                                            {"attemptIndex", bossAttemptIndex},
+                                            {"attempt", attempt},
+                                            {"result", boss}});
                 bossCleared = true;
-            } else if (resource >= reviveCost * 50) {
+            } else if (resource >= reviveCost * 50 && bossAttemptIndex + 1 < static_cast<int>(bossAttempts.size())) {
                 paidReviveCost = reviveCost * 50;
                 resource -= reviveCost * 50;
                 frameEvent = "boss_revive";
-                result["events"].push_back(
-                    {{"step", step}, {"type", "boss_revive"}, {"reviveCost", reviveCost}, {"result", boss}});
+                result["events"].push_back({{"step", result["frames"].size()},
+                                            {"type", "boss_revive"},
+                                            {"attemptIndex", bossAttemptIndex},
+                                            {"attempt", attempt},
+                                            {"reviveCost", reviveCost},
+                                            {"paidResource", paidReviveCost},
+                                            {"result", boss}});
+                ++bossAttemptIndex;
+                ++reviveCount;
+                // 复活只改变迷宫流程位置：资源、已收集金币、已触发陷阱和已揭示 Boss 血量都保留。
+                reviveToStart = true;
             } else {
                 frameEvent = "boss_game_over";
-                result["events"].push_back(
-                    {{"step", step}, {"type", "boss_game_over"}, {"reviveCost", reviveCost}, {"result", boss}});
+                result["events"].push_back({{"step", result["frames"].size()},
+                                            {"type", "boss_game_over"},
+                                            {"attemptIndex", bossAttemptIndex},
+                                            {"attempt", attempt},
+                                            {"reviveCost", reviveCost},
+                                            {"result", boss}});
                 gameOver = true;
             }
         }
 
-        Json frame{{"step", step}, {"row", row}, {"col", col}, {"tile", tile}, {"delta", delta}, {"resource", resource}};
+        Json frame{{"step", result["frames"].size()},
+                   {"row", row},
+                   {"col", col},
+                   {"tile", tile},
+                   {"delta", delta},
+                   {"resource", resource}};
         if (paidReviveCost > 0) frame["reviveCost"] = paidReviveCost;
         if (!frameEvent.empty()) frame["event"] = frameEvent;
         result["path"].push_back({{"row", row}, {"col", col}});
         result["frames"].push_back(std::move(frame));
         if (gameOver) break;
+        if (reviveToStart) {
+            // 复活回 S 生成独立帧，便于前端展示；它不是玩家移动，所以不增加 steps。
+            Json reviveFrame{{"step", result["frames"].size()},
+                             {"row", data.start.first},
+                             {"col", data.start.second},
+                             {"tile", "S"},
+                             {"delta", 0},
+                             {"resource", resource},
+                             {"event", "revive_start"},
+                             {"reviveAttemptIndex", bossAttemptIndex}};
+            result["path"].push_back({{"row", data.start.first}, {"col", data.start.second}});
+            result["frames"].push_back(std::move(reviveFrame));
+            pathIndex = path.size() > 1 ? 1 : path.size();
+            continue;
+        }
+        ++pathIndex;
     }
 
-    const int steps = path.empty() ? 0 : static_cast<int>(path.size()) - 1;
     result["resource"] = resource;
     result["steps"] = steps;
     result["score_ratio"] = steps == 0 ? 0.0 : static_cast<double>(resource) / steps;
     result["average_resource_per_step"] = steps == 0 ? 0.0 : static_cast<double>(resource) / steps;
-    result["finished"] = !gameOver && !path.empty() && path.back() == data.exit;
+    result["finished"] = !gameOver && !result["path"].empty() &&
+                         Position{result["path"].back()["row"].get<int>(), result["path"].back()["col"].get<int>()} ==
+                             data.exit;
     result["game_over"] = gameOver;
+    result["revive_count"] = reviveCount;
+    result["boss_attempts_consumed"] = bossCleared ? bossAttemptIndex + 1 : bossAttemptIndex;
     result["boss"] = boss;
     return result;
 }
