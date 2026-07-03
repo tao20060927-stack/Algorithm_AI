@@ -1005,26 +1005,6 @@ double PathValueEvaluator::computeQEff(const PathValueContext &context, const Lo
 }
 
 /**
- * 功能：计算低资源安全 barrier。
- * 输入：
- *   - projectedResource：走完候选路径后的资源。
- * 输出：
- *   - 返回平滑安全惩罚。
- * 关键逻辑：
- *   - 资源低于安全线时按平方惩罚，避免固定大惩罚把正常探索路径全部压成极低分。
- */
-double PathValueEvaluator::marginPenalty(int projectedResource) const
-{
-    // 资源高于安全线 safeResource (30) 时不施加惩罚。
-    if (projectedResource >= parameters_.safeResource) return 0.0;
-    // margin 是"资源缺口占安全线的比例"：例如 R=10 时 margin = (30-10)/30 = 0.667。
-    const double margin = static_cast<double>(parameters_.safeResource - projectedResource) / parameters_.safeResource;
-    // 平方惩罚 lambdaMargin * margin^2：资源越低惩罚增长越快（边际递增），
-    // 但比固定大常数柔和，不会把紧贴安全线的路径也压成极低分。
-    return parameters_.lambdaMargin * margin * margin;
-}
-
-/**
  * 功能：根据当前观察统计更新平滑动态 alpha。
  * 输入：
  *   - previousAlpha：上一步使用的平滑 alpha。
@@ -1087,7 +1067,7 @@ double PathValueEvaluator::updateAlphaSmooth(double previousAlpha, const LocalKn
  * 关键逻辑：
  *   - 路径中间资源允许为负；只有走完整条候选路径后的资源为负时，才判为负无穷。
  *   - 若 DeltaR、I_proxy、tailUB 都为 0，说明目标没有任何收益来源，直接判为负无穷。
- *   - 其余情况使用 DeltaR + omegaI*alpha*I + beta*tailUB - qEffLengthWeight*qEff*len - margin，不加入最近访问惩罚。
+ *   - 其余情况使用 DeltaR + omegaI*alpha*I + beta*tailUB - qEffLengthWeight*qEff*len，不加入低资源风险项或最近访问惩罚。
  *   - 如果目标位于 Boss-gated 区域，I_proxy 的 |C| 一律按 bossEdgeAreaBonus 计算。
  */
 double PathValueEvaluator::evaluate(const std::vector<Position> &path, Position target,
@@ -1121,13 +1101,12 @@ double PathValueEvaluator::evaluate(const std::vector<Position> &path, Position 
     // 守卫 5：如果 DeltaR <= 0 且 I_proxy == 0，目标没有任何收益来源（无金币、无探索价值），
     // 直接判为负无穷，避免 AI 选择纯浪费步数的目标。
     if (delta <= 0 && info == 0.0) return -1e18;
-    // 计算路径长度机会成本系数 q_eff 和资源安全惩罚 margin。
+    // 计算路径长度机会成本系数 q_eff。
     const double qEff = computeQEff(context, localMap);
-    const double margin = marginPenalty(projectedResource);
     // 主评分公式：
-    // Score = DeltaR + omegaI * alpha * I_proxy + beta * V_tail - eta_q * qEff * len - phi_margin
+    // Score = DeltaR + omegaI * alpha * I_proxy + beta * V_tail - eta_q * qEff * len
     return delta + parameters_.omegaI * context.state.alphaSmooth * info + parameters_.beta * tail -
-           parameters_.qEffLengthWeight * qEff * pathLength(path) - margin;
+           parameters_.qEffLengthWeight * qEff * pathLength(path);
 }
 
 /**

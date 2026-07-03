@@ -21,7 +21,6 @@ struct GreedyCandidateDebug {
     double tailGain = 0.0;                // 边际尾部金币价值 V_tail^marg(t)
     double qEff = 0.0;                     // 当前 q_eff 值
     int pathLength = 0;                    // 路径步数 len(path_t)
-    double marginPenalty = 0.0;            // 安全裕量惩罚 φ_margin
     int projectedResource = 0;             // 走完路径后的预计资源 R + dR
     std::vector<int> unknownComponents;    // 与目标 3x3 视野接触的未知连通块大小列表
     int unknownComponentSum = 0;           // 上述列表的总和（用于排序和调试）

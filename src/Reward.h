@@ -32,8 +32,6 @@ struct RewardParameters {
     double rhoAreaValueMin = reward_config::kRhoAreaValueMin; // ρ_area_value 的 clip 下界，避免价值密度被压到零
     double qMin = reward_config::kQMin;                       // q_eff 下限，保证开局 R=0 时路径长度仍有基础代价
     double qEffLengthWeight = reward_config::kQEffLengthWeight;// 路径长度代价项的全局缩放系数 η_q，乘在 q_eff × len 前
-    int safeResource = reward_config::kSafeResource;          // 安全资源线 m_safe，资源低于此线触发 margin penalty
-    double lambdaMargin = reward_config::kLambdaMargin;       // 安全裕量 barrier 惩罚强度，控制 φ_margin 的整体幅度
     double switchMargin = reward_config::kSwitchMargin;       // 目标保持切换阈值，新目标需比旧目标高出此分数才换
     double gammaClosedSingleton = reward_config::kGammaClosedSingleton;// Closed Singleton Gate 的 c_A 权重 γ
     double marginClosedSingleton = reward_config::kMarginClosedSingleton;// Closed Singleton Gate 拒绝 A 的保守门槛偏移
@@ -166,14 +164,11 @@ public:
     // 计算 q_eff：路径步数代价系数 = max(q_ref, q_min)
     double computeQEff(const PathValueContext &context, const LocalKnownMap &localMap) const;
 
-    // 计算 φ_margin：资源低于安全线的平方 barrier 惩罚
-    double marginPenalty(int projectedResource) const;
-
     // 根据当前观察统计更新平滑动态 α
     double updateAlphaSmooth(double previousAlpha, const LocalKnownMap &localMap,
                              const MapPoseEstimator &poseEstimator) const;
 
-    // 主评分函数：Score = ΔR + ωI·α·I_proxy + β·V_tail − ηq·qEff·len − φ_margin
+    // 主评分函数：Score = ΔR + ωI·α·I_proxy + β·V_tail − ηq·qEff·len
     double evaluate(const std::vector<Position> &path, Position target, const PathValueContext &context,
                     const LocalKnownMap &localMap, const MapPoseEstimator &poseEstimator) const;
 

@@ -120,7 +120,6 @@ Json greedyCandidateDebugJson(const GreedyCandidateDebug &candidate)
             {"tailGain", candidate.tailGain},
             {"qEff", candidate.qEff},
             {"pathLen", candidate.pathLength},
-            {"marginPenalty", candidate.marginPenalty},
             {"projectedResource", candidate.projectedResource},
             {"unknownComponents", candidate.unknownComponents},
             {"unknownComponentSum", candidate.unknownComponentSum},
@@ -326,7 +325,7 @@ std::string AIPlayerEngine::RunRealtimeGreedy(const std::string &inputJson)
         const GreedyRunResult run = realtimeGreedyRun(data);
         Json result = buildResult(data, run.path, "realtime-greedy");
         attachGreedyDebug(result, run);
-        result["greedy_formula"] = "additive reward = DeltaR + omegaI*alpha*I_proxy + beta*tailUB - qEffLengthWeight*qEff*pathLen - marginPenalty; tailUB excludes coins already covered by path_t";
+        result["greedy_formula"] = "additive reward = DeltaR + omegaI*alpha*I_proxy + beta*tailUB - qEffLengthWeight*qEff*pathLen; tailUB excludes coins already covered by path_t";
         result["memory_policy"] = "online memory: each decision uses the local_known_map updated by 3x3 observations";
         return resultCache_[cacheKey] = result.dump();
     } catch (const std::exception &ex) {

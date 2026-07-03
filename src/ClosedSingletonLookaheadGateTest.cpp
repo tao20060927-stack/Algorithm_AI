@@ -115,7 +115,7 @@ ClosedSingletonGateRequest makeRequest(LocalKnownMap &map, PathValueEvaluator &e
  * 输出：
  *   - 返回参数结构体。
  * 关键逻辑：
- *   - 关闭路径长度成本和低资源惩罚，使 memory-only continuation 的正向信息价值更容易被观测。
+ *   - 关闭路径长度成本，使 memory-only continuation 的正向信息价值更容易被观测。
  */
 RewardParameters makeParameters()
 {
@@ -123,7 +123,6 @@ RewardParameters makeParameters()
     parameters.omegaI = 1.0;
     parameters.kappaU = 1.0;
     parameters.qEffLengthWeight = 0.0;
-    parameters.lambdaMargin = 0.0;
     parameters.gammaClosedSingleton = 1.0;
     parameters.marginClosedSingleton = 0.0;
     return parameters;

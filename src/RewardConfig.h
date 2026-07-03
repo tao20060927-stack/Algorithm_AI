@@ -11,7 +11,6 @@ namespace ai_player::reward_config {
  *   + omegaI * alpha_t_smooth * I_proxy(t)
  *   + beta * FutureGain_marg_tailUB(t)
  *   - qEffLengthWeight * q_eff * len(path_t)
- *   - marginPenalty(R + DeltaR_real(path_t))
  *
  * 其中：
  * I_proxy(t) = kappaU * sum_C min(|C|, activeAreaCap) * rho_area_value
@@ -21,9 +20,6 @@ namespace ai_player::reward_config {
  * v_area = 50 * rhoG - 30 * rhoT
  *
  * q_eff = max(q_ref, qMin)
- *
- * marginPenalty(r) =
- *     lambdaMargin * (max(0, safeResource - r) / safeResource)^2
  *
  * alpha_t_raw =
  *     alpha0
@@ -71,12 +67,6 @@ inline constexpr double kQMin = 1.0;
 
 // qEffLengthWeight 位于 qEffLengthWeight * q_eff * len(path_t)，控制路径长度机会成本项的整体权重。
 inline constexpr double kQEffLengthWeight = 0.82;
-
-// safeResource 位于 marginPenalty(r)，表示低资源安全线。
-inline constexpr int kSafeResource = 30;
-
-// lambdaMargin 位于 marginPenalty(r)，控制低资源 barrier 惩罚强度。
-inline constexpr double kLambdaMargin = 8.0;
 
 // switchMargin 位于目标保持条件 Score(best) > Score(currentTarget) + switchMargin，防止目标频繁横跳。
 inline constexpr double kSwitchMargin = 5.0;

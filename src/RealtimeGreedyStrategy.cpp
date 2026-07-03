@@ -608,8 +608,6 @@ private:
             item.pathLength = path.empty() ? 0 : static_cast<int>(path.size()) - 1;
             // projectedResource：到达目标后的预计剩余资源。
             item.projectedResource = state_.resource + item.deltaR;
-            // marginPenalty：若预计资源非负，计算当前边界惩罚，防止资源在阈值附近过度冒险。
-            item.marginPenalty = item.projectedResource < 0 ? 0.0 : evaluator_.marginPenalty(item.projectedResource);
             // 记录是否存在非负资源候选，供 shouldGoExit 判断。
             hasNonNegativeTarget = hasNonNegativeTarget || (!path.empty() && item.projectedResource >= 0);
             // 统计从目标位置可接触的未知连通分量大小，用于评估探索潜力。
