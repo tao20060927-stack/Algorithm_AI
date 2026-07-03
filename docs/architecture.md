@@ -57,7 +57,7 @@ AIPlayerDesktop/
 
 ```cpp
 // AIPlayerEngine.cpp:361-368
-if (isRewardRouterAlgorithm(algorithm)) {  // "dijkstra"/"astar"/"branch_bound"/"divide_conquer"
+if (isRewardRouterAlgorithm(algorithm)) {  // "dijkstra"/"astar"/"branch_bound"/"divide_conquer" (AIPlayerEngine.cpp:51)
     -> realtimeGreedyRun(data, algorithm)  // 路径 A — reward选目标, 指定路由器
 } else {
     -> planAdventurePath(data, algorithm)  // 路径 B — "smart" 全局最近邻
@@ -156,10 +156,10 @@ MemoryGreedyAgent(data, routeAlgorithm="greedy", parameters=默认)  // Realtime
 ```
 const MazeData& maze_;                // 真实迷宫 (3x3 视野的真相来源)
 string routeAlgorithm_;               // 路由器选择
-LocalKnownMap localMap_;              // AI 记忆 (仅已观察格)
-MapPoseEstimator poseEstimator_;      // 估计 AI 在 15x15 的位置
-PathValueEvaluator evaluator_;        // 评分器
-AgentState state_;                    // {resource, steps, collectedGold, alphaSmooth}
+LocalKnownMap localMap_;              // AI 记忆 (仅已观察格) (Reward.h:65)
+MapPoseEstimator poseEstimator_;      // 估计 AI 在 15x15 的位置 (Reward.h:100)
+PathValueEvaluator evaluator_;        // 评分器 (Reward.h:149)
+AgentState state_;                    // {resource, steps, collectedGold, alphaSmooth} (Reward.h:134)
 
 map<Position,Position> localToReal_;  // 局部→真实
 map<Position,Position> realToLocal_;  // 真实→局部
@@ -176,12 +176,12 @@ double currentTargetScore_;           // 该目标的分数
 bool currentTargetFromPocket_;        // 当前目标是否来自 Pocket
 ```
 
-## 3.3 主循环：`MemoryGreedyAgent::run()`
+## 3.3 主循环：`MemoryGreedyAgent::run()` (RealtimeGreedyStrategy.cpp:68)
 
 ### 3.3.1 循环前初始化
 
 ```
-run() → GreedyRunResult {path, debugSteps, gameOver}
+run() → GreedyRunResult {path, debugSteps, gameOver}  // RealtimeGreedyStrategy.cpp:68
 │
 ├─ realCurrent = maze_.start       // 真实坐标从迷宫 S 开始
 ├─ localCurrent = {0, 0}          // 局部坐标始终 (0,0) 为起点
@@ -197,23 +197,23 @@ run() → GreedyRunResult {path, debugSteps, gameOver}
 for step=0; step<900 && realCurrent≠exit; step++:
 │
 ├─────────────────────────────────────────────────────────────
-│ [步骤 1] updateKnownMap(realCurrent, localCurrent)          §3.3.3
+│ [步骤 1] updateKnownMap(realCurrent, localCurrent)          §3.3.3  // RealtimeGreedyStrategy.cpp:175
 │          扫描真实迷宫 3×3 → 写入 localMap_
 ├─────────────────────────────────────────────────────────────
-│ [步骤 2] applyCurrentCell(localCurrent)                     §3.3.4
+│ [步骤 2] applyCurrentCell(localCurrent)                     §3.3.4  // RealtimeGreedyStrategy.cpp:229
 │          结算资源、触发 Boss、标记访问
 ├─────────────────────────────────────────────────────────────
-│ [步骤 3] poseEstimator_.update(localMap_, localCurrent)     §3.3.5
+│ [步骤 3] poseEstimator_.update(localMap_, localCurrent)     §3.3.5  // Reward.cpp:365
 │          更新入口假设评分，检测掩码激活
 ├─────────────────────────────────────────────────────────────
-│ [步骤 4] state_.alphaSmooth =                               §3.3.6
+│ [步骤 4] state_.alphaSmooth =                               §3.3.6  // Reward.cpp:1024
 │           evaluator_.updateAlphaSmooth(prevAlpha,            §3.3.6
 │                                        localMap_, est)
 ├─────────────────────────────────────────────────────────────
 │ [步骤 5] if pendingRevive_ || gameOver_:                    §3.3.7
 │          处理 Boss 战后果 (复活/结束)
 ├─────────────────────────────────────────────────────────────
-│ [步骤 6] selectedPath = selectBestPath(...)                 §3.4
+│ [步骤 6] selectedPath = selectBestPath(...)                 §3.4  // RealtimeGreedyStrategy.cpp:521
 │          核心决策：reward 评分 → 选最佳目标 → 返回路径
 ├─────────────────────────────────────────────────────────────
 │ [步骤 7] 执行一步
@@ -222,10 +222,10 @@ for step=0; step<900 && realCurrent≠exit; step++:
 │          path.push_back(realCurrent)
 ```
 
-### 3.3.3 updateKnownMap — 3×3 视野到局部记忆
+### 3.3.3 updateKnownMap — 3×3 视野到局部记忆 (RealtimeGreedyStrategy.cpp:175)
 
 ```
-updateKnownMap(realCurrent, localCurrent)
+updateKnownMap(realCurrent, localCurrent)  // RealtimeGreedyStrategy.cpp:175
 │
 ├─ for dr = -1..1, dc = -1..1:                          // 3×3 = 9 格
 │   │
@@ -263,10 +263,10 @@ updateKnownMap(realCurrent, localCurrent)
 │   └─ realToLocal_[realPos] = localPos
 ```
 
-### 3.3.4 applyCurrentCell — 资源结算
+### 3.3.4 applyCurrentCell — 资源结算 (RealtimeGreedyStrategy.cpp:229)
 
 ```
-applyCurrentCell(localCurrent)
+applyCurrentCell(localCurrent)  // RealtimeGreedyStrategy.cpp:229
 │
 ├─ localMap_.markVisited(localCurrent)
 │   └─ cells_[localCurrent].visited = true
@@ -301,12 +301,12 @@ applyCurrentCell(localCurrent)
 └─ state_.steps++
 ```
 
-### 3.3.5 poseEstimator_.update — 估计迷宫位置
+### 3.3.5 poseEstimator_.update — 估计迷宫位置 (Reward.cpp:365)
 
 ```
-MapPoseEstimator::update(localMap, localCurrent)
+MapPoseEstimator::update(localMap, localCurrent)  // Reward.cpp:365
 │
-├─ [Phase A] 种子类型检测 (seedKind_)
+├─ [Phase A] 种子类型检测 (seedKind_)  // Reward.h:120
 │   若 maskSeeded_==false:
 │   │
 │   ├─ 检查出生点 3×3 的 setOutside 标记
@@ -347,10 +347,10 @@ MapPoseEstimator::update(localMap, localCurrent)
     └─ 局部记忆横向或纵向 span ≥ 15? → maskActive_ = true
 ```
 
-### 3.3.6 updateAlphaSmooth — 动态探索权重
+### 3.3.6 updateAlphaSmooth — 动态探索权重 (Reward.cpp:1024)
 
 ```
-updateAlphaSmooth(prevAlpha, localMap, poseEstimator) → double
+updateAlphaSmooth(prevAlpha, localMap, poseEstimator) → double  // Reward.cpp:1024
 │
 ├─ [1] 统计已观察区域资源分布
 │   for pos in localMap.observedPositions():
@@ -413,20 +413,20 @@ if pendingRevive_ || gameOver_:
 
 ---
 
-## 3.4 核心决策：`selectBestPath()`
+## 3.4 核心决策：`selectBestPath()` (RealtimeGreedyStrategy.cpp:521)
 
 这是整个系统最复杂的函数，每步调用一次，决定 "下一步往哪里走"。
 
 ### 3.4.1 完整调用流程
 
 ```
-selectBestPath(localCurrent, realCurrent, step, debug) → vector<Position>
+selectBestPath(localCurrent, realCurrent, step, debug) → vector<Position>  // RealtimeGreedyStrategy.cpp:521
 │
 ├──────────────────────────────────────────────────────────────────
 │ [Phase 0] 准备评分上下文                                       │
 ├──────────────────────────────────────────────────────────────────
 │
-├─ context = buildContext(localCurrent)
+├─ context = buildContext(localCurrent)                      // RealtimeGreedyStrategy.cpp:404
 │   │
 │   ├─ context.state = state_                        // 拷贝当前资源/步数
 │   │
@@ -435,9 +435,9 @@ selectBestPath(localCurrent, realCurrent, step, debug) → vector<Position>
 │   │       └─ 从当前到出口在 localMap_ 上的路径 (不可达→空)
 │   │   └─ else: context.exitPath = {}               // 出口未发现
 │   │
-│   └─ context.bossGatedAreaMaxTargets = bossGatedAreaMaxTargets(localCurrent)
+│   └─ context.bossGatedAreaMaxTargets = bossGatedAreaMaxTargets(localCurrent)  // RealtimeGreedyStrategy.cpp:426
 │       │
-│       └─ [子函数] bossGatedAreaMaxTargets:
+│       └─ [子函数] bossGatedAreaMaxTargets:  // RealtimeGreedyStrategy.cpp:426
 │           ├─ [Step A] BFS from current, 视所有Boss为墙
 │           │   → reachableWithoutBoss = 不穿过Boss即可到达的已知格集合
 │           │
@@ -447,7 +447,7 @@ selectBestPath(localCurrent, realCurrent, step, debug) → vector<Position>
 │           │
 │           └─ return gated  // 必须穿Boss才能到达的区域
 │
-├─ debug.qEff = evaluator_.computeQEff(context, localMap_)
+├─ debug.qEff = evaluator_.computeQEff(context, localMap_)  // Reward.cpp:976
 │   │
 │   ├─ q_ref = 出口可达? (R + exitΔR) / (L + exitLen + ε)
 │   │          : R / (L + ε)
@@ -458,7 +458,7 @@ selectBestPath(localCurrent, realCurrent, step, debug) → vector<Position>
 ├─ debug.observedRatio = poseEstimator_.estimatedObservedCount() / 225.0
 │
 ├──────────────────────────────────────────────────────────────────
-│ [Phase 1] 生成候选集 — candidateTargets(localCurrent)           │
+│ [Phase 1] 生成候选集 — candidateTargets(localCurrent) (RealtimeGreedyStrategy.cpp:336) │
 ├──────────────────────────────────────────────────────────────────
 │
 │   for pos in localMap_.observedPositions():
@@ -476,7 +476,7 @@ selectBestPath(localCurrent, realCurrent, step, debug) → vector<Position>
 │ [Phase 2] 记录被拒绝候选                                        │
 ├──────────────────────────────────────────────────────────────────
 │
-├─ recordRejectedTargets(localCurrent, debug)
+├─ recordRejectedTargets(localCurrent, debug)  // RealtimeGreedyStrategy.cpp:366
 │   │
 │   └─ for pos in observedPositions() (全部已观察格):
 │       ├─ pos == localCurrent?
@@ -495,14 +495,14 @@ selectBestPath(localCurrent, realCurrent, step, debug) → vector<Position>
 │
 │ for target in targets:
 │   │
-│   ├─ [3.1] path = routePath(localCurrent, target)
+│   ├─ [3.1] path = routePath(localCurrent, target)  // RealtimeGreedyStrategy.cpp:495
 │   │   │
 │   │   └─ 路由器分发 (详见第五章):
-│   │       ├─ "greedy"/"smart" → BFS on localMap_
-│   │       ├─ "dijkstra" → priority_queue Dijkstra
-│   │       ├─ "astar"    → A* with Manhattan heuristic
-│   │       ├─ "branch_bound" → DFS + lower bound prune
-│   │       └─ "divide_conquer" → bidirectional BFS meet
+│   │       ├─ "greedy"/"smart" → BFS on localMap_  // shortestPathOnKnownMap (Reward.cpp:1133)
+│   │       ├─ "dijkstra" → priority_queue Dijkstra  // dijkstraPath (DijkstraStrategy.cpp:97)
+│   │       ├─ "astar"    → A* with Manhattan heuristic  // astarPath (AStarStrategy.cpp:106)
+│   │       ├─ "branch_bound" → DFS + lower bound prune  // branchBoundPath (BranchBoundStrategy.cpp:150)
+│   │       └─ "divide_conquer" → bidirectional BFS meet  // divideConquerPath (DivideConquerStrategy.cpp:189)
 │   │
 │   ├─ [3.2] score = evaluator_.evaluate(path, target, context,
 │   │                                     localMap_, poseEstimator_)
@@ -559,7 +559,7 @@ selectBestPath(localCurrent, realCurrent, step, debug) → vector<Position>
 │ ║ 优先级 1: 停止探索 → 转向出口                               ║
 │ ╚══════════════════════════════════════════════════════════════╝
 │
-├─ shouldGoExit(context, bestScore, hasWorthwhile, hasNonNegative)?
+├─ shouldGoExit(context, bestScore, hasWorthwhile, hasNonNegative)?  // RealtimeGreedyStrategy.cpp:807
 │   │
 │   ├─ exitPath 空或长度≤1? → return false     // 出口还没找到
 │   │
@@ -631,12 +631,12 @@ selectBestPath(localCurrent, realCurrent, step, debug) → vector<Position>
 
 ---
 
-## 3.5 核心评分：`evaluate()` — 完整展开
+## 3.5 核心评分：`evaluate()` — 完整展开 (Reward.cpp:1079)
 
 ### 3.5.1 守卫检查 (任意不通过→返回 −∞)
 
 ```
-evaluate(path, target, context, localMap, poseEstimator) → double
+evaluate(path, target, context, localMap, poseEstimator) → double  // Reward.cpp:1079
 │
 ├─ [Guard 1] path.size() ≤ 1? → return -1e18
 │   └─ 路径仅包含当前位置，无意义
@@ -661,10 +661,10 @@ evaluate(path, target, context, localMap, poseEstimator) → double
 └─ 全部通过 → 进入主评分
 ```
 
-### 3.5.2 pathResourceDelta — 路径资源变化
+### 3.5.2 pathResourceDelta — 路径资源变化 (Reward.cpp:820)
 
 ```
-pathResourceDelta(path, localMap) → int
+pathResourceDelta(path, localMap) → int  // Reward.cpp:820
 │
 ├─ delta = 0
 ├─ for i = 1 to path.size()-1:  // 跳过 path[0] (当前位置)
@@ -676,10 +676,10 @@ pathResourceDelta(path, localMap) → int
 └─ return delta
 ```
 
-### 3.5.3 pathKeepsResourceNonNegative — 前缀资源约束
+### 3.5.3 pathKeepsResourceNonNegative — 前缀资源约束 (Reward.cpp:848)
 
 ```
-pathKeepsResourceNonNegative(path, currentResource, localMap) → bool
+pathKeepsResourceNonNegative(path, currentResource, localMap) → bool  // Reward.cpp:848
 │
 ├─ resource = currentResource
 ├─ for i = 1 to path.size()-1:
@@ -691,10 +691,10 @@ pathKeepsResourceNonNegative(path, currentResource, localMap) → bool
 └─ return true
 ```
 
-### 3.5.4 informationProxy — 信息价值
+### 3.5.4 informationProxy — 信息价值 (Reward.cpp:882)
 
 ```
-informationProxy(target, localMap, poseEstimator, areaCap, forceAreaMax)
+informationProxy(target, localMap, poseEstimator, areaCap, forceAreaMax)  // Reward.cpp:882
 │
 ├─ [Step 1] 统计已观察区域的资源密度
 │   for pos in localMap.observedPositions():
@@ -735,10 +735,10 @@ informationProxy(target, localMap, poseEstimator, areaCap, forceAreaMax)
     = 60 × Σ capped_size × ρ_area
 ```
 
-### 3.5.5 futureGainMarginal — 边际尾部价值
+### 3.5.5 futureGainMarginal — 边际尾部价值 (Reward.cpp:940)
 
 ```
-futureGainMarginal(target, path, localMap) → double
+futureGainMarginal(target, path, localMap) → double  // Reward.cpp:940
 │
 ├─ coinsOnPath = ∅
 ├─ for i=1..path.size()-1:
@@ -757,10 +757,10 @@ futureGainMarginal(target, path, localMap) → double
     └─ 最值钱的已知金币的边际价值上界
 ```
 
-### 3.5.6 computeQEff — 步数代价系数
+### 3.5.6 computeQEff — 步数代价系数 (Reward.cpp:976)
 
 ```
-computeQEff(context, localMap) → double
+computeQEff(context, localMap) → double  // Reward.cpp:976
 │
 ├─ q_ref = context.state.resource
 │        / (context.state.steps + epsilon)   // epsilon = 1e-6
@@ -775,10 +775,10 @@ computeQEff(context, localMap) → double
     └─ q_min=1.0 保证 R=0 时步数有基本代价
 ```
 
-### 3.5.7 marginPenalty — 安全裕量 barrier
+### 3.5.7 marginPenalty — 安全裕量 barrier (Reward.cpp:1002)
 
 ```
-marginPenalty(projectedResource) → double
+marginPenalty(projectedResource) → double  // Reward.cpp:1002
 │
 ├─ projectedResource ≥ 30? → return 0.0
 │   └─ 资源充足, 无惩罚
@@ -889,14 +889,14 @@ attachGreedyDebug(result, run)
 ### 3.8.1 触发条件
 
 ```
-choosePocketFirstTarget(localCurrent, context, localMap, poseEstimator, evaluator)
+choosePocketFirstTarget(localCurrent, context, localMap, poseEstimator, evaluator)  // PocketAwareGreedy.cpp:163
 │
-├─ [Step 1] findPocket(localCurrent, ...)
+├─ [Step 1] findPocket(localCurrent, ...)  // PocketAwareGreedy.cpp:105
 │   │
 │   ├─ hubCandidates = {localCurrent} ∪ 四方向邻居中 isWalkable 的
 │   │
 │   └─ for hub in hubCandidates:
-│       └─ pocketCoinsForHub(hub, ...)
+│       └─ pocketCoinsForHub(hub, ...)  // PocketAwareGreedy.cpp:74
 │           └─ for coin in localMap.knownCoins():
 │               └─ BFS(hub→coin) 长度 ≤ pocketRadius(=2)?
 │                   └─ 加入 pocket
@@ -944,17 +944,17 @@ choosePocketFirstTarget(localCurrent, context, localMap, poseEstimator, evaluato
 
 ---
 
-## 3.9 Closed Singleton Lookahead Gate (完整展开)
+## 3.9 Closed Singleton Lookahead Gate (完整展开) (ClosedSingletonLookaheadGate.cpp:356)
 
 ### 3.9.1 触发条件
 
 ```
-applyClosedSingletonLookaheadGate(request) → ClosedSingletonGateResult
+applyClosedSingletonLookaheadGate(request) → ClosedSingletonGateResult  // ClosedSingletonLookaheadGate.cpp:356
 │
 ├─ [Guard 1] request.localMap / poseEstimator / evaluator 均非空
-├─ [Guard 2] findTopCandidate(candidates) 存在
+├─ [Guard 2] findTopCandidate(candidates) 存在  // ClosedSingletonLookaheadGate.cpp:315
 │   └─ candidateA = 当前 top-1
-├─ [Guard 3] isClosedSingletonCandidate(candidateA)
+├─ [Guard 3] isClosedSingletonCandidate(candidateA)  // ClosedSingletonLookaheadGate.cpp:58
 │   └─ 判定: unknownComponentSum == 1 && score有效 && path非空 && tile≠"E"
 │   └─ 意义: 这个候选走完只能打开 1 个新格子 — 直接收益极低
 │
@@ -965,7 +965,7 @@ applyClosedSingletonLookaheadGate(request) → ClosedSingletonGateResult
 
 ```
 │
-├─ findBestNonClosedCandidate(candidates, candidateA) → B
+├─ findBestNonClosedCandidate(candidates, candidateA) → B  // ClosedSingletonLookaheadGate.cpp:339
 │   │
 │   └─ 遍历 candidates:
 │       ├─ candidate == A? → skip
@@ -1043,10 +1043,10 @@ applyClosedSingletonLookaheadGate(request) → ClosedSingletonGateResult
 
 # 第四章：路由算法详解
 
-## 4.1 BFS on localMap (greedy/smart 默认)
+## 4.1 BFS on localMap (greedy/smart 默认) (Reward.cpp:1133)
 
 ```
-PathValueEvaluator::shortestPathOnKnownMap(start, target, localMap) → path
+PathValueEvaluator::shortestPathOnKnownMap(start, target, localMap) → path  // Reward.cpp:1133
 │
 ├─ !isWalkableForPlanning(start) || !isWalkableForPlanning(target)? → {}
 │
@@ -1069,10 +1069,11 @@ PathValueEvaluator::shortestPathOnKnownMap(start, target, localMap) → path
 └─ 回溯 parent 链 → reverse → return path
 ```
 
-## 4.2 A\* on localMap
+## 4.2 A\* on localMap (AStarStrategy.cpp:106)
 
 ```
-astarPath(localMap, start, target) → path
+astarPath(localMap, start, target) → path  // AStarStrategy.cpp:106
+// 全局重载: astarPath(data, start, target) → path  // AStarStrategy.cpp:26
 │
 ├─ !isWalkableForPlanning(start/target)? → {}
 │
@@ -1097,14 +1098,16 @@ astarPath(localMap, start, target) → path
 └─ 回溯 parent → reverse → return path
 ```
 
-## 4.3 Dijkstra on localMap
+## 4.3 Dijkstra on localMap (DijkstraStrategy.cpp:97)
 
 与 A\* 相同，但 h(pos) = 0 (无启发式)，退化为 Uniform-Cost Search。等权网格上等价 BFS 但使用优先队列。
+全局重载: dijkstraPath(data, start, target) → path (DijkstraStrategy.cpp:25)
 
-## 4.4 Branch & Bound on localMap
+## 4.4 Branch & Bound on localMap (BranchBoundStrategy.cpp:150)
 
 ```
-branchBoundPath(localMap, start, target) → path
+branchBoundPath(localMap, start, target) → path  // BranchBoundStrategy.cpp:150
+// 全局重载: branchBoundPath(data, start, target) → path  // BranchBoundStrategy.cpp:131
 │
 ├─ bestPath = {}, upperBound = ∞
 │
@@ -1123,10 +1126,11 @@ branchBoundPath(localMap, start, target) → path
 └─ return bestPath
 ```
 
-## 4.5 Divide & Conquer (双向 BFS)
+## 4.5 Divide & Conquer (双向 BFS) (DivideConquerStrategy.cpp:189)
 
 ```
-divideConquerPath(localMap, start, target) → path
+divideConquerPath(localMap, start, target) → path  // DivideConquerStrategy.cpp:189
+// 全局重载: divideConquerPath(data, start, target) → path  // DivideConquerStrategy.cpp:170
 │
 ├─ frontierA = {start}, frontierB = {target}
 ├─ parentA[start]=kInvalid, parentB[target]=kInvalid
@@ -1156,10 +1160,10 @@ divideConquerPath(localMap, start, target) → path
 
 # 第五章：路径 B — 全局最近邻
 
-## 5.1 planAdventurePath("smart") — 完整流程
+## 5.1 planAdventurePath("smart") — 完整流程 (ShortestPathStrategy.cpp:50)
 
 ```
-planAdventurePath(data, "smart") → vector<Position>
+planAdventurePath(data, "smart") → vector<Position>  // ShortestPathStrategy.cpp:50
 │
 ├─ 路由型算法禁止独立调用:
 │   dijkstra/astar/branch_bound/divide_conquer? → throw
@@ -1217,14 +1221,14 @@ planAdventurePath(data, "smart") → vector<Position>
 
 # 第六章：Boss 战系统
 
-## 6.1 顶层: runBossBattleJson
+## 6.1 顶层: runBossBattleJson (BossStrategy.cpp:703)
 
 ```
-runBossBattleJson(source) → Json
+runBossBattleJson(source) → Json  // BossStrategy.cpp:703
 │
 ├─ [校验] source 含 "B" (HP数组) 和 "PlayerSkills" (技能数组)
-├─ [解析] bossHPs = B[], skills = [Skill{id, damage, cd}, ...]
-├─ readMinRounds(source) → -1 或整数
+├─ [解析] bossHPs = B[], skills = [Skill{id, damage, cd}, ...]  // Skill (GameTypes.h:21)
+├─ readMinRounds(source) → -1 或整数  // BossStrategy.cpp:40
 │
 ├─ [主循环] for bossIndex=0..bossHPs.size()-1:   // 顺序揭示
 │   │
@@ -1250,31 +1254,31 @@ runBossBattleJson(source) → Json
 └─ return result
 ```
 
-## 6.2 solveCurrentBossByLightCapacity — 单 Boss 分支限界
+## 6.2 solveCurrentBossByLightCapacity — 单 Boss 分支限界 (BossStrategy.cpp:596)
 
 ```
-solveCurrentBossByLightCapacity(hp, cooldown, skills, reserveSlack, phaseTurnLimit)
+solveCurrentBossByLightCapacity(hp, cooldown, skills, reserveSlack, phaseTurnLimit)  // BossStrategy.cpp:596
 │
 ├─ maxDamage = max(skills[i].damage)
-├─ minForcedDamage = minimumForcedDamagePerTurn(skills)
+├─ minForcedDamage = minimumForcedDamagePerTurn(skills)  // BossStrategy.cpp:220
 │   └─ 冷却=0且伤害>0的技能中取最小伤害 (不能等待时必须出招)
 │
 ├─ lowerBound = ceil(hp / maxDamage)               // 理论最小回合
 ├─ upperBound = phaseTurnLimit + reserveSlack      // 最大允许回合
 │
-├─ bestPlan = {}
+├─ bestPlan = {}  // BossPlanCandidate (BossStrategy.cpp:12)
 │
 ├─ for turns = lowerBound .. upperBound:            // 逐精确回合枚举
 │   │
-│   ├─ candidates = enumerateKillExactTurns(hp, cooldown, skills, turns, memo)
+│   ├─ candidates = enumerateKillExactTurns(hp, cooldown, skills, turns, memo)  // BossStrategy.cpp:245
 │   │   │
 │   │   └─ [子函数] BFS 逐层枚举:
 │   │       ├─ turn 0: states = [{hp, startCooldown, {}}]
 │   │       ├─ for t=0..exactTurns-1:
-│   │       │   ├─ 本层去重: liveStateKey(hp, cooldown) → 保留最小序列
+│   │       │   ├─ 本层去重: liveStateKey(hp, cooldown) → 保留最小序列  // BossStrategy.cpp:111
 │   │       │   ├─ for state in states:
-│   │       │   │   └─ for action in availableBossActions(cooldown):
-│   │       │   │       ├─ applyBossAction → (nextHp, nextCd)
+│   │       │   │   └─ for action in availableBossActions(cooldown):  // BossStrategy.cpp:199
+│   │       │   │       ├─ applyBossAction → (nextHp, nextCd)  // BossStrategy.cpp:174
 │   │       │   │       ├─ !lastTurn && nextHp≤0? → skip (不能提前死)
 │   │       │   │       ├─ lastTurn && nextHp>0? → skip (必须死)
 │   │       │   │       └─ 通过 → 记入下一层 (去重: 同 cooldownAfter 保留字典序最小)
@@ -1283,7 +1287,7 @@ solveCurrentBossByLightCapacity(hp, cooldown, skills, reserveSlack, phaseTurnLim
 │   │
 │   └─ for cand in candidates:
 │       │
-│       ├─ lightScore = evaluateSuffixLightCapacity(cand, skills, remainingBossCount, memo)
+│       ├─ lightScore = evaluateSuffixLightCapacity(cand, skills, remainingBossCount, memo)  // BossStrategy.cpp:497
 │       │   │
 │       │   └─ [子函数] 滚动时域评估:
 │       │       ├─ 已知后缀 (remainingBossCount>0):
@@ -1291,13 +1295,13 @@ solveCurrentBossByLightCapacity(hp, cooldown, skills, reserveSlack, phaseTurnLim
 │       │       │   └─ knownCapacity = 剩余回合 − Σ(后续Boss最小回合)
 │       │       │
 │       │       └─ 未知后缀:
-│       │           └─ suffixCapacityThreshold(remainingBossCount)
+│       │           └─ suffixCapacityThreshold(remainingBossCount)  // BossStrategy.cpp:432
 │       │               └─ 均匀分配截止时间片 → 每片 avgDamage
 │       │               └─ return min_over_slices(avgDamage)
 │       │       │
 │       │       └─ lightScore = min(knownCapacity, unknownThreshold)
 │       │
-│       └─ betterBossPlanByLightCapacity(bestPlan, {turns, lightScore, ...})?
+│       └─ betterBossPlanByLightCapacity(bestPlan, {turns, lightScore, ...})?  // BossStrategy.cpp:536
 │           └─ 比较链: lightScore > turns > cooldownCost > readyDamage > sequence
 │           └─ 是? → bestPlan = cand
 │
@@ -1316,18 +1320,18 @@ AI 只通过 3×3 视野观察迷宫，不知道自己在 15×15 坐标系中的
 
 ## 7.2 核心数据结构
 
-### 7.2.1 Direction 枚举
+### 7.2.1 Direction 枚举 (Reward.h:13)
 
 ```cpp
-enum class Direction { Up, Down, Left, Right };
+enum class Direction { Up, Down, Left, Right };  // Reward.h:13
 // 表示 AI 进入迷宫后面对的方向（从入口往迷宫内部看）
 // 这是局部坐标到估计 15×15 坐标之间做旋转变换的关键参数
 ```
 
-### 7.2.2 MapEmbeddingHypothesis — 入口假设
+### 7.2.2 MapEmbeddingHypothesis — 入口假设 (Reward.h:92)
 
 ```cpp
-struct MapEmbeddingHypothesis {
+struct MapEmbeddingHypothesis {  // Reward.h:92
     Position entry{kInvalid};              // AI 入口在 15×15 坐标系中的估计位置
     Direction inwardDirection;             // 从入口进入后朝迷宫内部的方向
     double score = 0.0;                    // 评分（越高越可信）
@@ -1341,13 +1345,13 @@ struct MapEmbeddingHypothesis {
 - `{entry={0,7}, inwardDirection=Down}` → AI 出生在上边界中央，面向下，局部坐标 (r,c) 映射为 (0+r, 7+c)
 - `{entry={7,14}, inwardDirection=Left}` → AI 出生在右边界中央，面向左，局部坐标 (r,c) 映射为 (7+c, 14-r)
 
-### 7.2.3 MapPoseEstimator — 估计器本体
+### 7.2.3 MapPoseEstimator — 估计器本体 (Reward.h:100)
 
 ```cpp
-class MapPoseEstimator {
-    static constexpr int kEstimatedSize = 15;           // 固定 15×15
+class MapPoseEstimator {  // Reward.h:100
+    static constexpr int kEstimatedSize = 15;           // 固定 15×15 (Reward.h:118)
 
-    enum class MaskSeedKind {
+    enum class MaskSeedKind {  // Reward.h:120
         Internal, Top, Bottom, Left, Right,
         TopLeft, TopRight, BottomLeft, BottomRight
     };
@@ -1365,10 +1369,10 @@ class MapPoseEstimator {
 
 掩码经历四个阶段：**初始化 → 种子检测 → 候选排除 → 激活裁剪**
 
-## 7.4 阶段一：初始化 (`initialize()`)
+## 7.4 阶段一：初始化 (`initialize()`) (Reward.cpp:343)
 
 ```
-initialize()
+initialize()  // Reward.cpp:343
 │
 ├─ hypotheses_.clear()
 ├─ 创建单一默认假设:
@@ -1437,11 +1441,11 @@ outside 格的意义：这个方向在迷宫**外部**——说明 AI 靠近迷�
 └─ maskSeeded_ = true
 ```
 
-### 7.5.3 坐标映射函数 (`mapWithHypothesis`)
+### 7.5.3 坐标映射函数 (`mapWithHypothesis`) (Reward.cpp:770)
 
 ```
-mapWithHypothesis(localPos, hypothesis) → Position (15×15 坐标)
-│
+mapWithHypothesis(localPos, hypothesis) → Position (15×15 坐标)  // Reward.cpp:770
+│   // 声明: Reward.h:129
 ├─ 根据 hypothesis.inwardDirection 旋转+平移:
 │
 ├─ Direction::Down:    // 入口在上边，面向下 → 局部 (r,c) = 估计 (entry.r+r, entry.c+c)
@@ -1598,10 +1602,10 @@ estimatedUnknownCount()
             (早期探索动力由 ρ_U 的偏大值自然增强)
 ```
 
-### 7.9.3 isInsideEstimatedMaze 的双重角色
+### 7.9.3 isInsideEstimatedMaze 的双重角色 (Reward.cpp:588)
 
 ```
-isInsideEstimatedMaze(localPos) → bool
+isInsideEstimatedMaze(localPos) → bool  // Reward.cpp:588
 │
 ├─ maskActive_==false? → return true (不裁剪)
 │   └─ 掩码未激活时不限制, 所有方向都视为有效
@@ -1652,61 +1656,95 @@ isInsideEstimatedMaze(localPos) → bool
 
 ---
 
-# 第八章：辅助数据结构
+# 第八章：基础数据结构
 
-## 7.1 LocalCell — 单个格子的 AI 记忆
+本章列出所有核心类型，按文件归属排列，标注精确 `file:line`。
 
-```
-LocalCell {
-    string tile = "U"       // 格子类型 (G/T/B/E/#/ /U)
-    bool observed = false    // 是否被 3×3 视野点亮
-    bool outside = false     // 确认在迷宫边界外
-    bool visited = false     // AI 实际踩过
-    bool collected = false   // 金币已拾取
-    bool triggered = false   // 陷阱已触发
-    bool bossTrigger = false // Boss 四邻触发区
-}
-```
+## 8.1 GameTypes.h — 基础类型与常量
 
-## 7.2 LocalKnownMap — AI 的记忆地图
-
-```
-LocalKnownMap {
-    map<Position, LocalCell> cells_   // 只有观察过的格子才在 map 中
-
-    setObserved(pos, tile)    → cells_[pos] = {observed, tile}
-    setOutside(pos)           → cells_[pos] = {observed, outside, tile="#"}
-    markBossTriggers(boss)    → 四邻 cells_[].bossTrigger = true
-    clearBoss(boss)           → cells_[boss] = {observed, tile=" "}
-    markVisited(pos)          → cells_[pos].visited = true
-    markCollected(pos)        → cells_[pos].collected = true
-    markTriggered(pos)        → cells_[pos].triggered = true
-    isWalkableForPlanning(pos)
-        → cells_含pos && observed && tile≠"#" && tile≠"B"
-    knownCoins()
-        → 遍历 cells_: tile=="G" && !collected → 返回列表
-}
+**Position & 常量** (`GameTypes.h:12-18`)：
+```cpp
+using Position = pair<int,int>;  // first=行, second=列
+using Json = nlohmann::json;
+constexpr int kGoldValue=50, kTrapValue=-30;
+constexpr Position kInvalid{-1000000000,-1000000000};  // 无效坐标哨兵
+constexpr array<Position,4> kDirs={{{1,0},{-1,0},{0,1},{0,-1}}}; // 下上右左
 ```
 
-## 7.3 AgentState
+**Skill** (`GameTypes.h:21-25`)：`{int id, damage, cooldown}` — 冷却>0 时不可使用
+
+**MazeData** (`GameTypes.h:28-35`)：`{Json source, grid[15][15], start, exit, bosses[], golds[]}`。仅路径B读grid；路径A只用start和source
+
+**passable()** (`GameTypes.h:38`) 界内&&≠"#"&&≠"B"；**scoreDelta()** (`GameTypes.h:45`) G→+50, T→-30
+
+## 8.2 Reward.h — Reward 系统
+
+### Direction (`Reward.h:13-18`) `{Up, Down, Left, Right}` — 决定局部→15×15旋转变换
+
+### RewardParameters (`Reward.h:21-50`) 32个可调参数，默认读`RewardConfig.h`
+
+### LocalCell (`Reward.h:54-63`) `{tile, observed, outside, visited, collected, triggered, bossTrigger}` — 单格AI记忆，存于`LocalKnownMap::cells_`(Reward.h:89)
+
+### LocalKnownMap (`Reward.h:65-88`, impl `Reward.cpp:31-317`)
+| 方法 | cpp行 | 作用 |
+|---|---|---|
+| setObserved | 31 | 记录观察格 |
+| setOutside | 48 | 标记越界 |
+| markBossTriggers | 65 | 标记四邻触发区 |
+| clearBoss | 81 | 击败后变空地 |
+| markVisited/Collected/Triggered | 97/111/127 | 状态标记 |
+| isWalkableForPlanning | 210 | observed&&≠"#"&&≠"B" |
+| tile/observedPositions/knownCoins | 226/241/311 | 查询 |
+
+### MapEmbeddingHypothesis (`Reward.h:92-97`) `{entry, inwardDirection, score, feasible}`
+
+### MapPoseEstimator (`Reward.h:100-125`, impl `Reward.cpp:329-783`)
+`hypotheses_[]`, `best_`, `observedEstimated_`, `maskSeeded_`, `maskActive_`, `seedKind_`
+方法: `initialize(329)`, `update(365)`, `isMaskActive(560)`, `localToEstimatedGlobal(574)`, `isInsideEstimatedMaze(588)`, `estimatedUnknownCount(603)`, `unknownComponentSizesTouchingView(636)`
+
+### AgentState (`Reward.h:134-139`) `{resource, steps, collectedGold, alphaSmooth}`
+
+### PathValueContext (`Reward.h:142-147`) `{AgentState state, exitPath, bossGatedAreaMaxTargets}`
+
+### PathValueEvaluator (`Reward.h:149-163`, impl `Reward.cpp:785-1167`)
+`parameters_`
+方法(cpp行): `pathResourceDelta(820)`, `pathKeepsResourceNonNegative(848)`, `informationProxy(882)`, `futureGainMarginal(934)`, `computeQEff(966)`, `marginPenalty(985)`, `updateAlphaSmooth(998)`, `evaluate(1079)`, `shortestPathOnKnownMap(1165)`
+
+## 8.3 RealtimeGreedyStrategy.h — 调试结构体
+
+- **GreedyCandidateDebug** (`RealtimeGreedyStrategy.h:14-29`) `{score,deltaR,I_proxy,tail,qEff,len,margin,pR,selected,...}`
+- **GreedyRejectedDebug** (`RealtimeGreedyStrategy.h:32-38`) `{target,tile,reason,pathLength}`
+- **GreedyStepDebug** (`RealtimeGreedyStrategy.h:41-55`) `{step,alpha,qEff,decision,candidates[],rejected[],closedSingletonGate,pocket}`
+- **GreedyRunResult** (`RealtimeGreedyStrategy.h:58-63`) `{path[],debugSteps[],gameOver}`
+
+## 8.4 ClosedSingletonLookaheadGate.h
+
+- **ClosedSingletonGateCandidate** (`ClosedSingletonLookaheadGate.h:12-24`)
+- **ClosedSingletonGateDebug** (`ClosedSingletonLookaheadGate.h:27-44`) `{checked,triggered,candidateA,rewardA,bestNonClosedB,rewardB,combinedA,allowed,reason}`
+- **ClosedSingletonGateResult** (`ClosedSingletonLookaheadGate.h:53-58`) `{hasSelection,changed,selectedTarget/Path/Score}`
+- **ClosedSingletonGateRequest** (`ClosedSingletonLookaheadGate.h:59-69`) `{localCurrent,exit,context,localMap,poseEstimator,evaluator,candidates[]}`
+
+## 8.5 PocketAwareGreedy.h
+
+- **PocketCandidateDebug** (`PocketAwareGreedy.h:12-26`) `{baseScore,ownIproxy,remainI,scoreFirst,...}`
+- **PocketDebug** (`PocketAwareGreedy.h:28-39`)
+- **PocketDecision** (`PocketAwareGreedy.h:41-47`) `{enabled,target,path,score,debug}`
+
+## 8.6 BossStrategy.cpp — Boss 战
+
+- **BossPlanCandidate** (`BossStrategy.cpp:12-22`) `{ok,turns,sequence,cooldownAfter,lightScore,remainingTurnsAfter,...}`
+- **PlannerMemo** (`BossStrategy.cpp:24-26`) `{killExact: map<string,vector<BossPlanCandidate>>}`
+
+## 8.7 生命周期
 
 ```
-AgentState {
-    int resource = 0          // 累计资源
-    int steps = 0             // 已走步数
-    int collectedGold = 0     // 已拾取金币数
-    double alphaSmooth = 4.0  // EMA 平滑后的 α
-}
-```
-
-## 7.4 PathValueContext
-
-```
-PathValueContext {
-    AgentState state                          // 当前状态快照
-    vector<Position> exitPath                 // 当前→出口路径 (不可达则空)
-    set<Position> bossGatedAreaMaxTargets     // Boss-gated 候选集合
-}
+JSON→MazeData(GameTypes.h:28)
+  Agent: Skill(GameTypes.h:21), BossPlanCandidate(BossStrategy.cpp:12), LocalKnownMap(Reward.h:65)←空
+  每步: LocalCell(Reward.h:54)←3×3, AgentState(Reward.h:134)←更新
+        PathValueContext(Reward.h:142), evaluate()→double
+        GreedyCandidateDebug(RealtimeGreedyStrategy.h:14)
+        ClosedSingletonGateResult(ClosedSingletonLookaheadGate.h:53), PocketDecision(PocketAwareGreedy.h:41)
+  输出: GreedyStepDebug→JSON frames[].debug
 ```
 
 ---
@@ -1715,26 +1753,26 @@ PathValueContext {
 
 | 参数 | 值 | 位置 | 含义 |
 |---|---|---|---|
-| ω_I | 0.175 | ω_I·α·I_proxy | 信息价值折扣 |
-| α_0~min~max | 4.0/1.0/8.0 | α_raw / clip | 动态探索权重 |
-| θ | 0.8 | α_smooth EMA | 平滑系数 |
-| β | 1.23 | β·V_tail | 尾部金币权重 |
-| κ_u | 60 | I_proxy | 连通块面积缩放 |
-| A_max | 12 | 出口未知面积上限 | |
-| knownExitAreaCap | 1.5 | 出口已知面积上限 | |
-| bossEdgeAreaBonus | 15 | Boss-gated 面积加成 | |
-| η_q | 0.82 | η_q·q_eff·len | 长度代价缩放 |
-| q_min | 1.0 | max(q_ref,1.0) | 步数代价下限 |
-| m_safe | 30 | φ_margin 安全线 | |
-| λ_m | 8.0 | φ_margin 强度 | |
-| τ | 5.0 | shouldGoExit | 停止探索 |
-| switchMargin | 5.0 | 目标保持 | 切换阈值 |
-| γ_closed | 1.0 | combinedA=reward+γ×c_A | |
-| margin_closed | -20 | combinedA>reward(B)+m | |
-| pocketRadius | 2 | 金币到hub距离 | |
-| μ | 0.2 | remainI 折扣 | |
-| λ_remain | 0.2 | remainI 权重 | |
-| λ | 10.0 | 密度估计平滑 | |
-| λ_G/λ_T | 1.0/1.0 | 金币/陷阱先验 | |
-| ρ_area_min | 0.001 | ρ_area clip 下界 | |
-| ε | 1e-6 | 防除零 | |
+| ω_I | 0.175 | ω_I·α·I_proxy (RewardConfig.h:39) | 信息价值折扣 |
+| α_0~min~max | 4.0/1.0/8.0 | α_raw / clip (RewardConfig.h:42) | 动态探索权重 |
+| θ | 0.8 | α_smooth EMA (RewardConfig.h:49) | 平滑系数 |
+| β | 1.23 | β·V_tail (RewardConfig.h:52) | 尾部金币权重 |
+| κ_u | 60 | I_proxy (RewardConfig.h:55) | 连通块面积缩放 |
+| A_max | 12 | 出口未知面积上限 (RewardConfig.h:58) | |
+| knownExitAreaCap | 1.5 | 出口已知面积上限 (RewardConfig.h:64) | |
+| bossEdgeAreaBonus | 15 | Boss-gated 面积加成 (RewardConfig.h:61) | |
+| η_q | 0.82 | η_q·q_eff·len (RewardConfig.h:73) | 长度代价缩放 |
+| q_min | 1.0 | max(q_ref,1.0) (RewardConfig.h:70) | 步数代价下限 |
+| m_safe | 30 | φ_margin 安全线 (RewardConfig.h:76) | |
+| λ_m | 8.0 | φ_margin 强度 (RewardConfig.h:79) | |
+| τ | 5.0 | shouldGoExit (RewardConfig.h:100) | 停止探索 |
+| switchMargin | 5.0 | 目标保持 (RewardConfig.h:82) | 切换阈值 |
+| γ_closed | 1.0 | combinedA=reward+γ×c_A (RewardConfig.h:85) | |
+| margin_closed | -20 | combinedA>reward(B)+m (RewardConfig.h:88) | |
+| pocketRadius | 2 | 金币到hub距离 (RewardConfig.h:91) | |
+| μ | 0.2 | remainI 折扣 (RewardConfig.h:94) | |
+| λ_remain | 0.2 | remainI 权重 (RewardConfig.h:97) | |
+| λ | 10.0 | 密度估计平滑 (RewardConfig.h:112) | |
+| λ_G/λ_T | 1.0/1.0 | 金币/陷阱先验 (RewardConfig.h:115) | |
+| ρ_area_min | 0.001 | ρ_area clip 下界 (RewardConfig.h:67) | |
+| ε | 1e-6 | 防除零 (RewardConfig.h:121) | |
