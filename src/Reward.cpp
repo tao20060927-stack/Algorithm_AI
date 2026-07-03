@@ -138,6 +138,7 @@ void LocalKnownMap::markTriggered(Position localPos)
  */
 bool LocalKnownMap::has(Position localPos) const
 {
+    // 坐标是否在记忆地图中（不论是否观察过）。未插入 cells_ 的坐标视为从未被观察到。
     return cells_.find(localPos) != cells_.end();
 }
 
@@ -595,7 +596,10 @@ Position MapPoseEstimator::localToEstimatedGlobal(Position localPos) const
  */
 bool MapPoseEstimator::isInsideEstimatedMaze(Position localPos) const
 {
+    // 掩码未激活时，不做边界裁剪 — 所有方向都视为"在迷宫内"，避免过度限制早期探索。
     if (!maskActive_) return true;
+    // 掩码激活后，将局部坐标映射到估计 15×15，检查是否在 [0,14]×[0,14] 范围内。
+    // 落在范围外的格子视为迷宫外部，不计入未知区域探索价值。
     return insideEstimated(localToEstimatedGlobal(localPos));
 }
 
@@ -718,18 +722,32 @@ std::vector<int> MapPoseEstimator::unknownComponentSizesTouchingView(Position lo
  */
 bool MapPoseEstimator::unknownExtensionTouchesMazeEdge(Position localTarget, const LocalKnownMap &localMap) const
 {
+    // 用途：判断从 target 出发的未知延伸是否触达迷宫边缘。
+    // Boss-gated bonus 现在不再依赖该判断；该函数保留给边缘可达性诊断和后续掩码逻辑复用。
+
+    // 守卫 1：内部出生且掩码未激活 → 完全不知道边缘在哪里 → 保守返回 false。
     if (!maskActive_ && seedKind_ == MaskSeedKind::Internal) return false;
+    // 守卫 2：掩码已激活但 target 在 15×15 外 → 无意义，直接 false。
     if (maskActive_ && !isInsideEstimatedMaze(localTarget)) return false;
 
+    // 收集所有已观察格，BFS 过程中遇到 observed 格视为障碍 ——
+    // 只沿未知格向外扩展，已观察格已经探索过，不能作为 "未知延伸"。
     const auto observedPositions = localMap.observedPositions();
     std::set<Position> observed(observedPositions.begin(), observedPositions.end());
+
+    // Lambda：判断一个局部格是否被掩码边界阻挡。
+    // 掩码边界在此视为 "迷宫边缘" —— BFS 触达边界 = 未知延伸触达迷宫边缘。
     const auto blockedByMaskBoundary = [&](Position pos) {
         const Position mapped = localToEstimatedGlobal(pos);
         if (maskActive_) {
+            // 完整掩码已启用：15×15 外围一圈是迷宫边界墙。
+            // mapped 落在 15×15 外或恰好在外围一圈 → 触达边缘。
             if (!insideEstimated(mapped)) return true;
-            return mapped.first == 0 || mapped.second == 0 || mapped.first == kEstimatedSize - 1 ||
-                   mapped.second == kEstimatedSize - 1;
+            return mapped.first == 0 || mapped.second == 0 ||
+                   mapped.first == kEstimatedSize - 1 || mapped.second == kEstimatedSize - 1;
         }
+        // 掩码未完全激活但有边缘种子信息：只阻挡已知的迷宫边界方向。
+        // 例如出生在上边界 → 已知 row≤0 是迷宫外 → 触达该方向视为触边。
         switch (seedKind_) {
         case MaskSeedKind::Top:
         case MaskSeedKind::Bottom:
@@ -738,11 +756,15 @@ bool MapPoseEstimator::unknownExtensionTouchesMazeEdge(Position localTarget, con
         case MaskSeedKind::Right:
             return mapped.second <= 0 || mapped.second >= kEstimatedSize - 1;
         default:
-            return false;
+            return false;  // 不应到达（外部已过滤 Internal）
         }
     };
+
+    // target 自身就在边界上 → 直接视为触达。
     if (blockedByMaskBoundary(localTarget)) return true;
 
+    // BFS：从 target 出发，沿未知格向四方向扩展。
+    // 遇到 observed 格阻挡（已探索区域）；遇到 blockedByMaskBoundary → true。
     std::set<Position> visited;
     std::queue<Position> queue;
     queue.push(localTarget);
@@ -753,15 +775,18 @@ bool MapPoseEstimator::unknownExtensionTouchesMazeEdge(Position localTarget, con
         queue.pop();
         for (const auto [dr, dc] : kDirs) {
             const Position next{row + dr, col + dc};
+            // 触达掩码边界 → 未知延伸确实通向迷宫边缘 → 返回 true。
             if (blockedByMaskBoundary(next)) return true;
+            // 已访问过或已被观察过 → 不可继续扩展（避免循环、避免穿过已知区域）。
             if (visited.count(next) || observed.count(next)) continue;
-            // 掩码未完全激活时，未知区域不能被当成无限平面搜索；超过 15x15 假设容量仍未触边，
+            // 掩码未完全激活时，未知区域不能被当成无限平面搜索；超过 15×15 假设容量仍未触边，
             // 说明当前记忆不足以可靠证明通向边缘，按不触边处理，避免 BFS 无界扩展。
             if (!maskActive_ && visited.size() >= searchLimit) return false;
             visited.insert(next);
             queue.push(next);
         }
     }
+    // BFS 耗尽所有未知连通块仍未触边 → 未知延伸被已观察区域包围 → 不触边。
     return false;
 }
 
@@ -777,16 +802,28 @@ bool MapPoseEstimator::unknownExtensionTouchesMazeEdge(Position localTarget, con
  */
 Position MapPoseEstimator::mapWithHypothesis(Position localPos, const MapEmbeddingHypothesis &hypothesis) const
 {
+    // 将局部坐标 (localPos) 按指定假设 (hypothesis) 映射为估计 15×15 坐标。
+    // 局部坐标系以 AI 出生点为原点 (0,0)，localPos.first=行偏移，localPos.second=列偏移。
+    // 估计 15×15 坐标系以迷宫左上角为原点 (0,0)。
     switch (hypothesis.inwardDirection) {
     case Direction::Down:
+        // AI 从上边界进入，面向下：局部向下走 = 估计行增加，局部向右走 = 估计列增加。
+        // entry 是上边界入口位置，localPos 直接平移叠加。
         return {hypothesis.entry.first + localPos.first, hypothesis.entry.second + localPos.second};
     case Direction::Up:
+        // AI 从下边界进入，面向上：局部向下走 = 估计行减少（方向反转）。
+        // 行坐标取反（entry.row − local.row），列保持不变。
         return {hypothesis.entry.first - localPos.first, hypothesis.entry.second + localPos.second};
     case Direction::Right:
+        // AI 从左边界进入，面向右：局部向右走 = 估计行增加；局部向下走 = 估计列增加。
+        // 行与列交换映射（旋转变换）。
         return {hypothesis.entry.first + localPos.second, hypothesis.entry.second + localPos.first};
     case Direction::Left:
+        // AI 从右边界进入，面向左：局部向右走 = 估计行增加；局部向下走 = 估计列减少。
+        // 与 Right 类似但列方向反转。
         return {hypothesis.entry.first + localPos.second, hypothesis.entry.second - localPos.first};
     }
+    // 不应到达此处；返回 entry 作为 fallback。
     return hypothesis.entry;
 }
 
@@ -843,49 +880,18 @@ int PathValueEvaluator::pathResourceDelta(const std::vector<Position> &path, con
 }
 
 /**
- * 功能：检查路径执行过程中资源是否始终不为负。
- * 输入：
- *   - path：局部坐标路径，path[0] 是当前位置。
- *   - currentResource：执行路径前 AI 当前资源。
- *   - localMap：局部记忆地图。
- * 输出：
- *   - 返回路径每一个前缀结算后的资源是否都 >= 0。
- * 关键逻辑：
- *   - 逐步结算金币和陷阱，而不是只看整条路径的总 DeltaR；这可以禁止“先踩陷阱到负数，再吃金币补回来”的路径。
- */
-bool PathValueEvaluator::pathKeepsResourceNonNegative(const std::vector<Position> &path, int currentResource,
-                                                      const LocalKnownMap &localMap) const
-{
-    // 从当前资源开始，逐步模拟路径上每一步的资源变化。
-    // 与 pathResourceDelta 不同，这里必须做"前缀检查"：不能只看总 DeltaR，
-    // 因为"先踩陷阱到负数再吃金币补回来"的路径在语义上是非法的。
-    int resource = currentResource;
-    for (size_t i = 1; i < path.size(); ++i) {
-        const Position pos = path[i];
-        const std::string tile = localMap.tile(pos);
-        if (tile == "G" && !localMap.isCollected(pos)) resource += kGoldValue;
-        if (tile == "T" && !localMap.isTriggered(pos)) resource += kTrapValue;
-        // 一旦某个前缀使资源变为负数，路径非法，立即返回 false。
-        // 这保证了路径执行过程中 AI 不会进入负资源状态。
-        if (resource < 0) return false;
-    }
-    // 所有前缀的资源都 >= 0，路径在资源约束下是可行的。
-    return true;
-}
-
-/**
  * 功能：计算探索信息价值 I_proxy。
  * 输入：
  *   - target：候选目标局部坐标。
  *   - localMap：局部记忆地图。
  *   - poseEstimator：姿态估计器；只有掩码已完全确定时才用它裁剪 |C|。
  *   - areaCap：|C| 面积奖励上限；出口未知时通常为 Amax，出口已知后可降到 1.5。
- *   - forceAreaMax：是否允许目标在未知延伸触达迷宫边缘时使用 Boss 边缘奖励。
+ *   - forceAreaMax：是否将 Boss-gated 目标直接按 bossEdgeAreaBonus 计算 |C|。
  * 输出：
  *   - 返回按当前价值密度估计后的未知连通块贡献。
  * 关键逻辑：
  *   - |C| 由局部记忆地图 BFS 得到；掩码未启用时不裁剪，掩码启用后不允许 BFS 展开到掩码外部。
- *   - 对必须踏过 Boss 才能继续到达的通关推进区域，只有未知延伸能触达迷宫边缘时才按 bossEdgeAreaBonus 计入。
+ *   - 对必须踏过 Boss 才能继续到达的通关推进区域，一律按 bossEdgeAreaBonus 计入。
  */
 double PathValueEvaluator::informationProxy(Position target, const LocalKnownMap &localMap,
                                             const MapPoseEstimator &poseEstimator, double areaCap,
@@ -919,9 +925,9 @@ double PathValueEvaluator::informationProxy(Position target, const LocalKnownMap
     const int searchAreaCap = std::max(1, static_cast<int>(std::ceil(activeAreaCap)));
     double componentValue = 0.0;
     // 第五步：计算未知连通块价值。
-    // Boss-gated 区域（forceAreaMax=true）且未知延伸触达迷宫边缘时，
-    // 按 bossEdgeAreaBonus (15) 替代 |C|，给予更高的通关推进权重。
-    if (forceAreaMax && poseEstimator.unknownExtensionTouchesMazeEdge(target, localMap)) {
+    // Boss-gated 区域（forceAreaMax=true）不再要求未知延伸触达迷宫边缘，
+    // 一律按 bossEdgeAreaBonus (15) 替代 |C|，给予固定通关推进权重。
+    if (forceAreaMax) {
         componentValue = static_cast<double>(parameters_.bossEdgeAreaBonus) * areaValueDensity;
     } else {
         // 一般情况：对每个与目标视野接触的未知连通块，取 min(|C|, cap) 并乘以价值密度。
@@ -1079,10 +1085,10 @@ double PathValueEvaluator::updateAlphaSmooth(double previousAlpha, const LocalKn
  * 输出：
  *   - 返回加性 reward 分数，非法路径返回负无穷。
  * 关键逻辑：
- *   - 若路径任意前缀会让资源变负，说明 AI 实际执行时会进入非法状态，直接判为负无穷。
+ *   - 路径中间资源允许为负；只有走完整条候选路径后的资源为负时，才判为负无穷。
  *   - 若 DeltaR、I_proxy、tailUB 都为 0，说明目标没有任何收益来源，直接判为负无穷。
  *   - 其余情况使用 DeltaR + omegaI*alpha*I + beta*tailUB - qEffLengthWeight*qEff*len - margin，不加入最近访问惩罚。
- *   - 如果目标位于 Boss-gated 区域且未知延伸触达迷宫边缘，I_proxy 的 |C| 按 bossEdgeAreaBonus 计算。
+ *   - 如果目标位于 Boss-gated 区域，I_proxy 的 |C| 一律按 bossEdgeAreaBonus 计算。
  */
 double PathValueEvaluator::evaluate(const std::vector<Position> &path, Position target,
                                     const PathValueContext &context, const LocalKnownMap &localMap,
@@ -1099,11 +1105,8 @@ double PathValueEvaluator::evaluate(const std::vector<Position> &path, Position 
     // 计算路径真实资源变化 DeltaR（金币+50，陷阱-30）。
     const int delta = pathResourceDelta(path, localMap);
     const int projectedResource = context.state.resource + delta;
-    // 守卫 3：走完路径后总资源不能为负（最终资源约束）。
+    // 守卫 3：只检查走完路径后的总资源不能为负；路径中间允许短暂为负。
     if (projectedResource < 0) return -1e18;
-    // 守卫 4：路径每一步前缀的资源都不能为负（前缀资源约束）。
-    // 这是更强的条件，禁止"先负后补"的路径。
-    if (!pathKeepsResourceNonNegative(path, context.state.resource, localMap)) return -1e18;
 
     // 计算探索信息价值 I_proxy。
     // 出口未知时 areaCap = areaMax (12)；出口已知后降到 knownExitAreaCap (1.5)。

@@ -57,7 +57,7 @@ inline constexpr double kKappaU = 60;
 // areaMax 位于 min(|C|, areaMax) * rho_area_value，限制单个未知连通块按多少个未知格计算潜在价值。
 inline constexpr int kAreaMax = 12;
 
-// bossEdgeAreaBonus 位于 Boss-gated 且未知延伸触达迷宫边缘时的 |C| 替代值，略高于普通 areaMax。
+// bossEdgeAreaBonus 位于 Boss-gated 目标的 |C| 替代值，略高于普通 areaMax。
 inline constexpr int kBossEdgeAreaBonus = 15;
 
 // knownExitAreaCap 位于出口已知后的 min(|C|, knownExitAreaCap)，削弱开阔未知区域的面积奖励。

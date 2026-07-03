@@ -27,7 +27,7 @@ struct RewardParameters {
     double beta = reward_config::kBeta;                       // 边际尾部金币价值权重，控制 V_tail^marg 在总分中的占比
     double kappaU = reward_config::kKappaU;                   // I_proxy 连通块面积贡献权重，乘在 Σ min(|C|,cap)×ρ_area 前
     int areaMax = reward_config::kAreaMax;                    // 出口未知时 |C| 面积裁剪上限，单个连通块最多计入此数量
-    int bossEdgeAreaBonus = reward_config::kBossEdgeAreaBonus;// Boss-gated 区域未知延伸触达迷宫边缘时的 |C| 替代值
+    int bossEdgeAreaBonus = reward_config::kBossEdgeAreaBonus;// Boss-gated 区域一律使用的 |C| 替代值
     double knownExitAreaCap = reward_config::kKnownExitAreaCap;// 出口已知后 |C| 面积裁剪上限，削弱开阔区域探索奖励
     double rhoAreaValueMin = reward_config::kRhoAreaValueMin; // ρ_area_value 的 clip 下界，避免价值密度被压到零
     double qMin = reward_config::kQMin;                       // q_eff 下限，保证开局 R=0 时路径长度仍有基础代价
@@ -142,7 +142,7 @@ struct AgentState {
 struct PathValueContext {
     AgentState state;                               // 当前资源、步数、金币数和 α
     std::vector<Position> exitPath;                  // 从当前位置到出口的局部路径（出口未知或不可达时为空）
-    std::set<Position> bossGatedAreaMaxTargets;      // 被判定为 Boss-gated 的候选目标集合（I_proxy 中按 areaMax 处理）
+    std::set<Position> bossGatedAreaMaxTargets;      // 被判定为 Boss-gated 的候选目标集合（I_proxy 中按 bossEdgeAreaBonus 处理）
 };
 
 // 路径价值评估器：实现完整的 reward 公式，评估候选路径并管理 α 更新
@@ -153,10 +153,6 @@ public:
 
     // 计算路径上所有未拾取金币和未触发陷阱的一次性资源变化（跳过 path[0]）
     int pathResourceDelta(const std::vector<Position> &path, const LocalKnownMap &localMap) const;
-
-    // 检查路径每一步累计资源是否从未变负，用于前缀资源约束
-    bool pathKeepsResourceNonNegative(const std::vector<Position> &path, int currentResource,
-                                      const LocalKnownMap &localMap) const;
 
     // 计算 I_proxy：候选目标的探索信息价值 = κ_u × Σ min(|C|, cap) × ρ_area_value
     double informationProxy(Position target, const LocalKnownMap &localMap,

@@ -2426,3 +2426,179 @@ run()  [每步]
 | 零资源保护 | 行 847 | `R==0 && hasNonNegativeTarget` → 禁止空手离场 |
 | 掩码未知比例 | 行 534 | `estimatedObservedCount() / 225` → `debug.observedRatio` |
 | 面积上限选择 | 行 543-544 | `exitPath 空? areaMax=12 : knownExitAreaCap=1.5` |
+
+---
+
+# 第十五章：PocketAwareGreedy.cpp 文件全览
+
+## 15.1 概述
+
+`PocketAwareGreedy.cpp` (297 行) 实现**局部金币簇优先策略**。当 AI 当前位置附近有 ≥2 个已知未拾取金币在半径 2 步以内时，触发 Pocket 模式——优先收割这些金币中 `Score_first` 最高的那个，把 I_proxy 最高的留到最后吃。
+
+全部实现在 `ai_player` namespace 下。入口是 `choosePocketFirstTarget()` (`PocketAwareGreedy.cpp:139`)。
+
+## 15.2 全部函数列表
+
+### ★★★ 关键函数
+
+| 函数 | 行号 | 作用 | 调用关系 |
+|---|---|---|---|
+| `choosePocketFirstTarget(...)` | 139 | **入口**：Pocket 决策主逻辑 | → `findPocket()`, `computeQEff()`, `shortestPathOnKnownMap()`, `pathResourceDelta()`, `informationProxy()` |
+
+### ★★ 核心函数
+
+| 函数 | 行号 | 作用 | 调用关系 |
+|---|---|---|---|
+| `findPocket(current, map, eval, radius, &hub)` | 95 | 识别最优 Pocket：遍历 hub 候选 → 统计半径内金币数 | → `hubCandidates()`, `pocketCoinsForHub()` |
+| `pocketCoinsForHub(hub, map, eval, radius)` | 74 | 统计指定 hub 半径内所有未拾取金币 | → `knownCoins()`, `shortestPathOnKnownMap()` |
+| `betterPocketCandidate(best, cand)` | 124 | 比较两个候选：`scoreFirst > eps → pathLen < → coord <` | |
+
+### ★ 工具函数
+
+| 函数 | 行号 | 作用 |
+|---|---|---|
+| `pathLength(path)` | 18 | 路径步数 = `path.size()-1` |
+| `closerHub(cur, left, right, eval, map)` | 34 | 两个 hub 谁离当前位置更近 (BFS 距离) |
+| `hubCandidates(current, map)` | 52 | 返回 {当前位置} ∪ {四方向可通行邻居} |
+
+## 15.3 调用关系图
+
+```
+choosePocketFirstTarget(current, context, map, poseEst, evaluator)
+  │
+  ├─ findPocket(current, map, evaluator, pocketRadius=2, hub)
+  │   ├─ hubCandidates(current, map)
+  │   │   └─ isWalkableForPlanning() × 4 方向
+  │   ├─ for each hub:
+  │   │   └─ pocketCoinsForHub(hub, map, evaluator, 2)
+  │   │       └─ knownCoins() → for each coin:
+  │   │           └─ shortestPathOnKnownMap(hub→coin) → len ≤ 2? 加入
+  │   └─ 选最优: 金币数最多 → 距离当前最近
+  │
+  ├─ pocketCoins.size() < 2? → return disabled
+  │
+  ├─ qEff = computeQEff(context, map)
+  │
+  └─ for coin in pocketCoins:
+      ├─ path = shortestPathOnKnownMap(current→coin)
+      ├─ baseScore = deltaR − 0.82 × qEff × len
+      ├─ for otherCoin in pocketCoins (other≠coin):
+      │   └─ remainI = max( Iproxy(other) / (1 + 0.2 × dist(coin, other)) )
+      ├─ scoreFirst = baseScore + 0.2 × remainI
+      └─ 选 scoreFirst 最高 → return PocketDecision
+```
+
+## 15.4 关键逻辑速查
+
+| 逻辑 | 行号 | 说明 |
+|---|---|---|
+| Pocket 阈值 | 102 | `coins.size() < 2` → 不触发（单个金币无"留哪个"的决策空间） |
+| hub 候选 | 52-59 | 当前位置 + 四方向可通行邻居 = 最多 5 个 |
+| 金币半径 | 80 | `pathLength(path) ≤ pocketRadius(2)` |
+| 选择 hub | 103-105 | 金币数优先 → BFS 距离优先 |
+| baseScore | 175 | `deltaR − ηq × qEff × len`（不含 I_proxy） |
+| remainI | 186 | `Iproxy(other) / (1 + 0.2 × dist)`（距离折扣） |
+| scoreFirst | 194 | `baseScore + 0.2 × remainI` |
+| 参 pocketRadius | RewardConfig.h:91 | 默认 2 |
+| 参 pocketMu | RewardConfig.h:94 | 默认 0.2（remainI 距离折扣） |
+| 参 pocketLambdaRemain | RewardConfig.h:97 | 默认 0.2（remainI 在 scoreFirst 中的权重） |
+
+---
+
+# 第十六章：ClosedSingletonLookaheadGate.cpp 文件全览
+
+## 16.1 概述
+
+`ClosedSingletonLookaheadGate.cpp` (495 行) 实现**闭单例前瞻门控**。当 top-1 候选的 `|C|=1`（走完它只能打开 1 个未知格），直接收益接近零——但走完它之后可能到达更好的后继目标。本模块做 memory-only 模拟：假设走了 A，不更新 3×3 视野，在模拟后的地图上重新评价所有候选，找出最优后继 `c_A`，然后用非对称比较 `reward(A) + γ×c_A > reward(B) + margin` 决定是否选 A。
+
+入口是 `applyClosedSingletonLookaheadGate()` (`ClosedSingletonLookaheadGate.cpp:356`)。
+
+## 16.2 全部函数列表
+
+### ★★★ 关键函数
+
+| 函数 | 行号 | 作用 |
+|---|---|---|
+| `applyClosedSingletonLookaheadGate(request)` | 356 | **入口**：Gate 完整决策流 |
+| `computeMemoryOnlyContinuationAfterA(A, request)` | 213 | 模拟走 A 后，在 `localMapAfter` 上重新评分所有候选 → 取 max = `c_A` |
+| `simulateExecuteAWithoutNewVision(A, request)` | 125 | 沿 A 的路径逐格走，结算资源，**不模拟 3×3 视野更新** |
+
+### ★★ 核心函数
+
+| 函数 | 行号 | 作用 |
+|---|---|---|
+| `isClosedSingletonCandidate(cand)` | 58 | 判定：`\|C\|=1` && score有效 && path非空 && tile≠"E" |
+| `isMeaningfulNonClosedCandidate(cand, A)` | 82 | 候选 B 的过滤：排除 A、排除死节点、排除其他 closed singleton |
+| `findTopCandidate(cands)` | 315 | 找当前最高分候选下标 |
+| `findBestNonClosedCandidate(cands, A)` | 339 | 找最高分"有意义非封闭"候选 |
+
+### ★ 工具函数
+
+| 函数 | 行号 | 作用 |
+|---|---|---|
+| `validScore(score)` | 29 | score > -1e17 && isfinite(score) |
+| `insideThreeByThree(center, pos)` | 44 | pos 是否在 center 的 3×3 范围内 |
+| `validContinuationCandidate(score, delta, info, tail, path, pR)` | 195 | 后继候选过滤：非 -∞、可达、资源非负、非死节点 |
+
+## 16.3 完整决策流程
+
+```
+applyClosedSingletonLookaheadGate(request)
+  │
+  ├─ [Guard] findTopCandidate(candidates) → A
+  │   不存在有效候选? → return disabled
+  │
+  ├─ [Gate 触发] isClosedSingletonCandidate(A)?
+  │   |C|≠1 或分数无效或 tile=="E"? → return (不干预)
+  │
+  ├─ [找 B] findBestNonClosedCandidate(candidates, A)
+  │   └─ 遍历 candidates:
+  │       排除 A, 排除 dead node (|C|=0 && dR≤0 && tail≤0 && ≠E)
+  │       排除其他 closed singleton
+  │   B 不存在? → A 直接通过 (return A)
+  │
+  ├─ [Phase 2] simulateExecuteAWithoutNewVision(A)
+  │   └─ 深拷贝 localMap + state
+  │       沿 A.path 逐格走:
+  │         isWalkable? → 否→中止
+  │         isBossTrigger? → 中止（不模拟 Boss 战）
+  │         markVisited → 结算 G(+50)/T(-30)
+  │         resource<0? → 中止
+  │       ⚠️ 不调用 3×3 视野更新
+  │   → (localMapAfter, stateAfter)
+  │
+  ├─ [Phase 3] computeMemoryOnlyContinuationAfterA(A)
+  │   └─ 在 localMapAfter 上:
+  │       计算 exitPath（如出口已知）
+  │       for pos in observedPositions:
+  │         排除 A 自身、出口、A 周围 3×3、已访问、不可通行
+  │         evaluate(path, pos, contextAfter, localMapAfter, estimator)
+  │         过滤: |C|=0 && dR≤0 && tail≤0 → skip
+  │         score > bestReward? → c_A = score
+  │   → c_A (A 之后的最优后继 reward)
+  │
+  ├─ [Phase 4] 非对称比较
+  │   combinedA = reward(A) + 1.0 × c_A
+  │   threshold = reward(B) + (-20)
+  │
+  │   combinedA > threshold?
+  │     YES → 选 A (A 通过门控)
+  │     NO  → 选 B (A 被拒绝，changed=true)
+  │
+  └─ return ClosedSingletonGateResult
+```
+
+## 16.4 关键逻辑速查
+
+| 逻辑 | 行号 | 说明 |
+|---|---|---|
+| Closed Singleton 判定 | 58-61 | `\|C\|=1`, score有效, path非空, tile≠"E" |
+| 死节点过滤 | 82-87 | `\|C\|=0 && dR≤0 && tail≤0 && tile≠"E"` → 排除 |
+| Boss 触发格中止 | 111 | 不模拟 Boss 战 — 太复杂，保守跳过 |
+| 3×3 视野不模拟 | — | `simulateExecuteAWithoutNewVision` 全程不调 `updateKnownMap` |
+| A 周围 3×3 排除 | 185-186 | `insideThreeByThree(A.target, pos)` — 视野没模拟，不能用 |
+| 非对称设计 | 325-326 | 只算 c_A，不算 c_B（B 是开放候选，模拟不可靠） |
+| γ (gamma) | RewardConfig.h:85 | 默认 1.0 |
+| margin | RewardConfig.h:88 | 默认 -20（负值=宽松：combinedA 可比 reward(B) 低最多 20 分仍通过） |
+| combinedA 公式 | 322-323 | `reward(A) + γ × c_A` |
+| Gate 插入点 | RealtimeGreedyStrategy.cpp:620 | 候选评分循环**之后**、shouldGoExit **之前** |

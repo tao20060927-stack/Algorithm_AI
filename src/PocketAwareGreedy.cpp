@@ -208,12 +208,11 @@ PocketDecision choosePocketFirstTarget(Position localCurrent,
         // deltaR：路径上的净资源变化（金币增加值 + 陷阱扣减值）。
         // 这反映了走完该路径后的即时资源收益。
         item.deltaR = evaluator.pathResourceDelta(path, localMap);
-        // 资源负性检查：走完该路径后资源必须非负。
-        // 如果路径中存在陷阱导致资源变为负值，该路径不可行——
-        // 在实际执行中 AI 不会选择让资源变负的路径。
+        // 资源负性检查：只要求走完整条路径后的资源非负。
+        // 路径中间可以短暂为负；如果最终仍为负，该候选不可行。
         // 将不可行候选的 baseScore 和 scoreFirst 设为 -inf，保留在 candidates 列表中用于调试，
         // 但不会参与 best 比较。
-        if (!evaluator.pathKeepsResourceNonNegative(path, context.state.resource, localMap)) {
+        if (context.state.resource + item.deltaR < 0) {
             item.baseScore = -1e18;
             item.scoreFirst = -1e18;
             decision.debug.candidates.push_back(item);
