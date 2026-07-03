@@ -68,7 +68,138 @@ if (isRewardRouterAlgorithm(algorithm)) {  // "dijkstra"/"astar"/"branch_bound"/
 
 ---
 
-# 第三章：路径 A — Reward 贪心
+# 第三章：程序入口与 JSON→输出 全流程
+
+## 3.1 main() 在哪里
+
+项目有多个可执行入口，各自有 `main()`：
+
+| 入口 | 文件:行 | 用途 |
+|---|---|---|
+| 桌面 GUI | `DesktopApp.cpp:440` `WinMain` | WebView2 桌面应用，前端通过 `chrome.webview.hostObjects.ai.RunRealtimeGreedy(json)` 调用后端 |
+| 冒烟测试 | `SmokeTest.cpp:9` `main(argc,argv)` | 命令行：`ai_player_smoke <input.json>` 跑所有算法 |
+| 批量评测 | `GreedyEval.cpp:180` `main(argc,argv)` | 批量跑分输出 CSV |
+| Boss 单测 | `BossStrategyTest.cpp:39` `main()` | Boss 求解器单元测试 |
+| Pocket 单测 | `PocketAwareGreedyTest.cpp:140` `main()` | Pocket 策略单元测试 |
+| Gate 单测 | `ClosedSingletonLookaheadGateTest.cpp:260` `main()` | 闭单例门控单元测试 |
+| 掩码单测 | `MaskPoseEstimatorTest.cpp:250` `main()` | 掩码估计单元测试 |
+
+**两个主流程入口**：桌面 GUI（`DesktopApp.cpp:440`）和命令行冒烟测试（`SmokeTest.cpp:9`）。两者都调用 `AIPlayerEngine` 的同一套 API。
+
+## 3.2 从原始 JSON 到最终输出 — 完整数据流
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ 步骤 1: 接收输入                                         │
+├─────────────────────────────────────────────────────────┤
+│ 桌面: 用户粘贴 JSON → WebView2 JS → HostObject          │
+│       → AiHostObject::Invoke(id=1, params)              │
+│       → engine_.RunRealtimeGreedy(jsonText)              │
+│       DesktopApp.cpp:216 (Invoke 分发)                   │
+│                                                         │
+│ 命令行: ai_player_smoke.exe input.json                  │
+│       → std::ifstream(argv[1]) → jsonText               │
+│       → engine.RunRealtimeGreedy(jsonText)               │
+│       SmokeTest.cpp:28                                   │
+└─────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────┐
+│ 步骤 2: 缓存检查 + JSON 解析                            │
+│ AIPlayerEngine.cpp:319 (RunRealtimeGreedy)               │
+├─────────────────────────────────────────────────────────┤
+│ makeRunCacheKey("greedy", jsonText)  // 算法名+规范化JSON │
+│ resultCache_.find(key) → 命中? 直接 return              │
+│ parseMaze(jsonText) → MazeData                          │
+│   AIPlayerEngine.cpp:84                                 │
+│   ├─ Json::parse(jsonText)                              │
+│   ├─ 校验 source["maze"] 是 15×15 二维数组              │
+│   ├─ 遍历 grid[r][c]:                                   │
+│   │   tile=="S"→start, "E"→exit, "B"→bosses[], "G"→golds[] │
+│   └─ 返回 MazeData { grid, start, exit, bosses, golds, source }│
+└─────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────┐
+│ 步骤 3: 算法执行                                         │
+│ AIPlayerEngine.cpp:326                                  │
+├─────────────────────────────────────────────────────────┤
+│ [路径A] RunRealtimeGreedy / RunAdventure("astar"...):    │
+│   GreedyRunResult run = realtimeGreedyRun(data)          │
+│   RealtimeGreedyStrategy.cpp:790                         │
+│   ├─ MemoryGreedyAgent 构造 → 预计算 Boss 战              │
+│   └─ agent.run() → 主循环 900 步上限                     │
+│       └─ 每步: updateKnownMap → applyCurrentCell         │
+│              → updateAlphaSmooth → selectBestPath         │
+│              → 走一步                                     │
+│       输出: { path[], debugSteps[], gameOver }           │
+│                                                         │
+│ [路径B] RunAdventure("smart"):                           │
+│   path = planAdventurePath(data, "smart")                │
+│   ShortestPathStrategy.cpp:50                            │
+│   └─ 全局最近邻贪心循环                                   │
+│       输出: path[]                                       │
+└─────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────┐
+│ 步骤 4: 构建输出 JSON                                    │
+│ AIPlayerEngine.cpp:258 (buildResult)                     │
+├─────────────────────────────────────────────────────────┤
+│ boss = runBossBattleJson(data.source) // Boss 战第二次调用│
+│ collected[15][15] = false, resource = 0                  │
+│                                                         │
+│ for each step in path:                                   │
+│   ├─ 首次访问? delta = scoreDelta(tile) → resource+=delta │
+│   ├─ 是 Boss 触发格? → 判断胜/复活/死 → event 入 events[]│
+│   ├─ frame = {step,row,col,tile,delta,resource}          │
+│   ├─ path[] ← {row,col}                                  │
+│   └─ frames[] ← frame                                    │
+│                                                         │
+│ [仅路径A] attachGreedyDebug(result, run)                  │
+│   AIPlayerEngine.cpp:225                                 │
+│   └─ 逐帧附加 debug {candidates[], rejected[],           │
+│       closedSingletonGate, pocket}                       │
+│                                                         │
+│ 返回 JSON: { ok, mode, path[], frames[], events[],       │
+│   resource, steps, score_ratio, finished, boss }         │
+└─────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────┐
+│ 步骤 5: 输出                                             │
+├─────────────────────────────────────────────────────────┤
+│ 缓存: resultCache_[key] = result.dump()                  │
+│ 桌面: return result.dump() → HostObject                 │
+│       → Variant BSTR → WebView2 → JS JSON.parse()       │
+│       → 前端渲染 path[] 和 frames[]                       │
+│ 命令行: cout << result.dump() → 终端                     │
+└─────────────────────────────────────────────────────────┘
+```
+
+## 3.3 调用链总览（一行表示一次函数调用）
+
+```
+SmokeTest/DesktopApp
+  → AIPlayerEngine::RunRealtimeGreedy(jsonText)  AIPlayerEngine.cpp:319
+    → parseMaze(jsonText)                         AIPlayerEngine.cpp:84 → MazeData
+    → realtimeGreedyRun(data)                     RealtimeGreedyStrategy.cpp:790
+      → MemoryGreedyAgent(data, algo, params)     RealtimeGreedyStrategy.cpp:37 (构造)
+        → runBossBattleJson(source)               BossStrategy.cpp:293 ← 第一次
+        → poseEstimator_.initialize()             Reward.cpp:329
+      → agent.run()                               RealtimeGreedyStrategy.cpp:68
+        → [主循环 900步] updateKnownMap → applyCurrentCell →
+          poseEstimator.update → updateAlphaSmooth → selectBestPath → 走一步
+    → buildResult(data, path, mode)               AIPlayerEngine.cpp:258
+      → runBossBattleJson(source)                 BossStrategy.cpp:293 ← 第二次
+    → attachGreedyDebug(result, run)              AIPlayerEngine.cpp:225
+    → resultCache_[key] = result.dump()
+    → return result.dump()                        ← JSON 字符串
+```
+
+---
+
+# 第四章：路径 A — Reward 贪心
 
 ## 3.1 引擎层：`AIPlayerEngine::RunRealtimeGreedy`
 
@@ -1041,7 +1172,7 @@ applyClosedSingletonLookaheadGate(request) → ClosedSingletonGateResult  // Clo
 
 ---
 
-# 第四章：路由算法详解
+# 第五章：路由算法详解
 
 ## 4.1 BFS on localMap (greedy/smart 默认) (Reward.cpp:1133)
 
@@ -1158,7 +1289,7 @@ divideConquerPath(localMap, start, target) → path  // DivideConquerStrategy.cp
 
 ---
 
-# 第五章：路径 B — 全局最近邻
+# 第六章：路径 B — 全局最近邻
 
 ## 5.1 planAdventurePath("smart") — 完整流程 (ShortestPathStrategy.cpp:50)
 
@@ -1219,7 +1350,7 @@ planAdventurePath(data, "smart") → vector<Position>  // ShortestPathStrategy.c
 
 ---
 
-# 第六章：Boss 战系统
+# 第七章：Boss 战系统
 
 ## 6.1 顶层: runBossBattleJson (BossStrategy.cpp:703)
 
@@ -1310,17 +1441,252 @@ solveCurrentBossByLightCapacity(hp, cooldown, skills, reserveSlack, phaseTurnLim
 
 ---
 
-# 第七章：15×15 掩码估计系统 (MapPoseEstimator)
+# 第八章：Reward 公式详解 — evaluate() 的每一步
 
-## 7.1 问题背景
+本章逐行拆解 `Reward.cpp:1079` 中 `PathValueEvaluator::evaluate()` 的完整计算过程，包括所有守卫、五项子公式的计算细节，以及每个子公式内部的数据流。
+
+## 8.1 主函数骨架 (`Reward.cpp:1079-1112`)
+
+```cpp
+double evaluate(path, target, context, localMap, poseEstimator) {
+    // [1] 5 个守卫 (任一项不通过 → -1e18)
+    // [2] 计算 5 个分项
+    // [3] 组装返回
+}
+```
+
+## 8.2 五项守卫 (`Reward.cpp:1083-1098`)
+
+```
+守卫 1: path.size() ≤ 1  →  -1e18
+守卫 2: 路径上任一格 !isWalkableForPlanning  →  -1e18
+守卫 3: R + pathResourceDelta(path) < 0  →  -1e18
+守卫 4: !pathKeepsResourceNonNegative(path, R, map)  →  -1e18
+守卫 5: δR≤0 && I_proxy==0  →  -1e18  (零收益零信息)
+```
+
+### 守卫 4 详解 — 前缀资源非负 (`Reward.cpp:848-858`)
+
+这是比守卫 3 更强的约束：路径上**每一步累计资源都不能为负**。
+
+```cpp
+int r = currentResource;
+for (i=1; i<path.size(); i++):
+    tile=="G" && !collected? → r += 50
+    tile=="T" && !triggered? → r -= 30
+    if (r < 0) → return false  // "先踩陷阱再吃金币"被禁止
+return true
+```
+
+## 8.3 第一项：ΔR — 路径资源变化 (`Reward.cpp:1092`)
+
+调用 `pathResourceDelta()` (`Reward.cpp:820`)：
+
+```cpp
+int delta = 0;
+for (i=1; i<path.size(); i++):  // 跳过 path[0] (当前位置)
+    tile=="G" && !isCollected? → delta += 50
+    tile=="T" && !isTriggered? → delta -= 30
+return delta
+```
+
+**关键**：已拾取的金币和已触发的陷阱返回 0——一次性资源不重复结算。
+
+## 8.4 第二项：ω_I·α·I_proxy (`Reward.cpp:1104-1108`)
+
+### I_proxy (`Reward.cpp:882-930`)
+
+```
+Step A: 统计当前 localMap 中已观察区域的金币/陷阱密度
+    for pos in observedPositions():
+        obsCount++, tile=="G"? goldCount++, tile=="T"? trapCount++
+    ρ̂_G = (goldCount+1) / (obsCount+10)
+    ρ̂_T = (trapCount+1) / (obsCount+10)
+    v_area = max(50×ρ̂_G − 30×ρ̂_T, 0)
+    ρ_area = clip(v_area/50, 0.001, 1.0)   ← 未知格"价值密度"
+
+Step B: Boss-gated 特殊路径
+    if forceAreaMax && unknownExtensionTouchesMazeEdge:
+        return κ_u × bossEdgeAreaBonus × ρ_area
+        = 60 × 15 × ρ_area
+
+Step C: 正常 BFS 展开
+    sizes = poseEstimator.unknownComponentSizesTouchingView(target, map, ceil(areaCap))
+        以 target 为 BFS 起点:
+        - observed 格视为障碍
+        - 掩码边界视为障碍  
+        - 展开到 ceil(areaCap) 个未知格 → 立即返回
+    componentVal = Σ min(size, activeCap) × ρ_area
+    activeCap = 出口已知? 1.5 : 12
+
+    return κ_u × componentVal = 60 × Σ...
+```
+
+### α_smooth (`Reward.cpp:998-1035`)
+
+```
+Step 1: 统计已观察格中 goldCount, trapCount
+Step 2: ρ̂_G = (goldCount+1)/(obsCount+10), ρ̂_T = (trapCount+1)/(obsCount+10)
+Step 3: v_unk = 50×ρ̂_G − 30×ρ̂_T
+Step 4: ρ_U = estimatedUnknownCount() / 225
+Step 5: raw = 4.0 × (1+1.0×ρ_U+1.0×max(v_unk,0)/50) / (1+2.0×ρ̂_T)
+Step 6: clipped = clamp(raw, 1.0, 8.0)
+Step 7: return 0.8×prevAlpha + 0.2×clipped
+```
+
+### 组装
+
+```cpp
+info = informationProxy(target, localMap, poseEstimator, areaCap, forceAreaMax);
+// 行 1108: + 0.175 × state_.alphaSmooth × info
+```
+
+## 8.5 第三项：β·V_tail (`Reward.cpp:1109`)
+
+调用 `futureGainMarginal()` (`Reward.cpp:934`)：
+
+```cpp
+// Step 1: 收集 path 上的金币 → coinsOnPath (这些已被 pathResourceDelta 计入)
+for (i=1; i<path.size(); i++):
+    tile=="G" && !collected? → coinsOnPath.insert(pos)
+
+// Step 2: 遍历所有已知金币（排除已在路径上的），取最大边际价值
+best = 0.0
+for coin in localMap.knownCoins():
+    if coin in coinsOnPath → skip
+    coinPath = BFS(target → coin on localMap)
+    if coinPath.empty() → skip
+    value = 50.0 / (len(coinPath) + 1)
+    best = max(best, value)
+return best
+```
+
+**含义**：走到 target 后，最值钱的已知金币有多"近"。越近的金币价值越高（分母小）。
+
+## 8.6 第四项：−η_q·q_eff·len (`Reward.cpp:1110`)
+
+### q_eff (`Reward.cpp:966-980`)
+
+```cpp
+q_ref = R / (L + 1e-6)                     // 当前 ratio 估计
+if exitPath 非空:
+    exitDelta = pathResourceDelta(exitPath) // 走出口还能捡多少
+    q_ref = (R + exitDelta) / (L + len(exitPath) + 1e-6)  // 出口 ratio
+
+return max(q_ref, 1.0)                     // q_min=1.0 保证代价下限
+```
+
+### len (`Reward.cpp:15-18`)
+
+```cpp
+return path.empty() ? 0 : path.size() - 1  // 步数 = 节点数 - 1
+```
+
+### 组装
+
+```cpp
+// 行 1110: - 0.82 × qEff × len(path)
+```
+
+## 8.7 第五项：−φ_margin (`Reward.cpp:1111`)
+
+调用 `marginPenalty()` (`Reward.cpp:985`)：
+
+```cpp
+if projectedResource >= 30 → return 0.0
+margin = (30.0 - projectedResource) / 30.0
+return 8.0 × margin × margin
+```
+
+| R' | φ_margin |
+|---|---|
+| 30+ | 0 |
+| 20 | 8×(10/30)² = 0.89 |
+| 10 | 8×(20/30)² = 3.56 |
+| 0 | 8×(30/30)² = 8.0 |
+
+## 8.8 最终组装 (`Reward.cpp:1112`)
+
+```cpp
+return delta                                          // ΔR
+     + 0.175 × context.state.alphaSmooth × info       // ω_I·α·I_proxy
+     + 1.23  × tail                                   // β·V_tail
+     − 0.82  × qEff × len                             // η_q·q_eff·len
+     − margin;                                         // φ_margin
+```
+
+## 8.9 数值追踪示例
+
+假设某步 AI 看到一枚金币 (1,1)=G，当前位置 (0,1)=S，R=0，L=0：
+
+```
+path = [(0,1), (1,1)]  →  len = 1
+delta = pathResourceDelta(path) = 50  // 金币未拾取
+projectedR = 0 + 50 = 30  →  φ_margin = 0  (≥30)
+info = I_proxy(target) = 60 × (展开的未知格数量) × ρ_area
+     开局 ρ̂_G≈0.05, ρ̂_T≈0.05, ρ_area≈(50×0.05-30×0.05)/50=0.02
+     假设展开 3 个未知格: info = 60 × 3 × 0.02 = 3.6
+α_smooth = 4.0 (初始值)
+qEff = max(0/1e-6, 1.0) = 1.0
+tail = 0 (没有其他已知金币)
+
+Score = 50 + 0.175×4.0×3.6 + 1.23×0 − 0.82×1.0×1 − 0
+      = 50 + 2.52 + 0 − 0.82 − 0
+      = 51.70
+```
+
+---
+
+# 第九章：15×15 掩码估计系统 (MapPoseEstimator)
+
+## 9.0 函数速查表
+
+全部实现在 `Reward.cpp`，类定义在 `Reward.h:100-125`。
+
+| 方法 | Reward.cpp 行号 | 重要性 | 作用 |
+|---|---|---|---|
+| `MapPoseEstimator()` | 329 | 构造 | 调用 `initialize()` |
+| `initialize()` | 343 | ★★ | 创建默认 `{7,7}` 入口，`maskActive_=false` |
+| `update(map,cur)` | 365 | ★★★ 关键 | 5 阶段：种子检测→包围盒→假设排除→掩码激活→重建预估观察集 |
+| `best()` | 546 | 工具 | getter，返回最优假设 |
+| `isMaskActive()` | 560 | ★★ | getter，掩码是否生效 |
+| `localToEstimatedGlobal(p)` | 574 | ★★ | 局部→15×15 坐标变换，调用 `mapWithHypothesis()` |
+| `isInsideEstimatedMaze(p)` | 588 | ★★ | 掩码激活? `insideEstimated(mapped)` : `true` |
+| `estimatedUnknownCount()` | 603 | ★★ | `225 − observedEstimated_.size()`，供 α 计算用 |
+| `estimatedObservedCount()` | 617 | 工具 | 去重已观察计数，供停止规则用 |
+| `unknownComponentSizesTouchingView(t,map,cap)` | 635 | ★★★ 关键 | BFS 展开未知连通块，受掩码边界裁剪 |
+| `unknownExtensionTouchesMazeEdge(t,map)` | 711 | ★ | Boss-gated 判定：未知延伸是否触达边缘 |
+| `mapWithHypothesis(p,hp)` | 770 | ★★ | 按假设旋转+平移局部坐标 |
+
+### 掩码种子类型 (`Reward.h` 私有)
+
+```cpp
+enum class MaskSeedKind { Internal, Top, Bottom, Left, Right,
+                          TopLeft, TopRight, BottomLeft, BottomRight };
+```
+
+### 成员变量 (`Reward.h:115-121`)
+
+```cpp
+vector<MapEmbeddingHypothesis> hypotheses_;  // 候选入口假设 (1~13个)
+MapEmbeddingHypothesis best_;                // 最优假设
+set<Position> observedEstimated_;            // 映射去重后的已观察估计坐标
+bool maskSeeded_ = false;                    // 出生边缘种子是否已检测
+bool maskActive_ = false;                    // 掩码是否生效
+MaskSeedKind seedKind_ = Internal;           // 出生边缘类型
+```
+
+---
+
+## 9.1 问题背景
 
 AI 只通过 3×3 视野观察迷宫，不知道自己在 15×15 坐标系中的绝对位置。但 `informationProxy()` 需要知道 "走到某个候选目标后能展开多少未知格"——如果不限制 BFS 范围，会把整个迷宫未探索区域都算进去，严重高估 I_proxy。
 
 **掩码系统的目标**：仅凭局部观察，推断 AI 在 15×15 迷宫中的大致位置和朝向，从而用一个 **15×15 的掩码框**去裁剪未知连通块的 BFS 展开范围。
 
-## 7.2 核心数据结构
+## 9.2 核心数据结构
 
-### 7.2.1 Direction 枚举 (Reward.h:13)
+### 9.2.1 Direction 枚举 (Reward.h:13)
 
 ```cpp
 enum class Direction { Up, Down, Left, Right };  // Reward.h:13
@@ -1328,7 +1694,7 @@ enum class Direction { Up, Down, Left, Right };  // Reward.h:13
 // 这是局部坐标到估计 15×15 坐标之间做旋转变换的关键参数
 ```
 
-### 7.2.2 MapEmbeddingHypothesis — 入口假设 (Reward.h:92)
+### 9.2.2 MapEmbeddingHypothesis — 入口假设 (Reward.h:92)
 
 ```cpp
 struct MapEmbeddingHypothesis {  // Reward.h:92
@@ -1345,7 +1711,7 @@ struct MapEmbeddingHypothesis {  // Reward.h:92
 - `{entry={0,7}, inwardDirection=Down}` → AI 出生在上边界中央，面向下，局部坐标 (r,c) 映射为 (0+r, 7+c)
 - `{entry={7,14}, inwardDirection=Left}` → AI 出生在右边界中央，面向左，局部坐标 (r,c) 映射为 (7+c, 14-r)
 
-### 7.2.3 MapPoseEstimator — 估计器本体 (Reward.h:100)
+### 9.2.3 MapPoseEstimator — 估计器本体 (Reward.h:100)
 
 ```cpp
 class MapPoseEstimator {  // Reward.h:100
@@ -1365,11 +1731,11 @@ class MapPoseEstimator {  // Reward.h:100
 };
 ```
 
-## 7.3 掩码生命周期
+## 9.3 掩码生命周期
 
 掩码经历四个阶段：**初始化 → 种子检测 → 候选排除 → 激活裁剪**
 
-## 7.4 阶段一：初始化 (`initialize()`) (Reward.cpp:343)
+## 9.4 阶段一：初始化 (`initialize()`) (Reward.cpp:343)
 
 ```
 initialize()  // Reward.cpp:343
@@ -1389,11 +1755,11 @@ initialize()  // Reward.cpp:343
 
 此时掩码不存在——I_proxy 的 BFS 不剪裁，所有方向的未知区域都会被计入。这是保守的早期行为。
 
-## 7.5 阶段二：种子检测 (`update()`, 首次调用)
+## 9.5 阶段二：种子检测 (`update()`, 首次调用)
 
 首次调用 `update()` 时，通过出生点周围 3×3 视野中的 **outside 标记**判断 AI 从迷宫哪条边进入。
 
-### 7.5.1 outside 标记的来源
+### 9.5.1 outside 标记的来源
 
 `updateKnownMap()` 扫描 3×3 时，超出 `realInBounds()` 的格子调用 `localMap_.setOutside(localPos)`：
 
@@ -1403,7 +1769,7 @@ initialize()  // Reward.cpp:343
 
 outside 格的意义：这个方向在迷宫**外部**——说明 AI 靠近迷宫的这一侧边界。
 
-### 7.5.2 种子检测逻辑
+### 9.5.2 种子检测逻辑
 
 ```
 首次 update(localMap, current):
@@ -1441,7 +1807,7 @@ outside 格的意义：这个方向在迷宫**外部**——说明 AI 靠近迷�
 └─ maskSeeded_ = true
 ```
 
-### 7.5.3 坐标映射函数 (`mapWithHypothesis`) (Reward.cpp:770)
+### 9.5.3 坐标映射函数 (`mapWithHypothesis`) (Reward.cpp:770)
 
 ```
 mapWithHypothesis(localPos, hypothesis) → Position (15×15 坐标)  // Reward.cpp:770
@@ -1463,11 +1829,11 @@ mapWithHypothesis(localPos, hypothesis) → Position (15×15 坐标)  // Reward.
     └─ return {entry.r + localPos.c, entry.c − localPos.r}
 ```
 
-## 7.6 阶段三：候选假设排除 (`update()`, 后续调用)
+## 9.6 阶段三：候选假设排除 (`update()`, 后续调用)
 
 每次 `update()` 执行后，用**新观察到**的格子信息排除不兼容的入口假设。
 
-### 7.6.1 排除时机
+### 9.6.1 排除时机
 
 ```
 hasFullHorizontal = (maxCol − minCol + 1) ≥ 15   // 水平跨度覆盖全宽
@@ -1481,7 +1847,7 @@ canPrune = (Top/Bottom && canPruneHorizontal) ||
 
 只有观察跨度 ≥ 14 格时才做排除——此前信息不足，强行排除可能把正确假设也删掉。
 
-### 7.6.2 三种检查
+### 9.6.2 三种检查
 
 对每个候选假设执行三项检查，任一不通过则排除：
 
@@ -1516,7 +1882,7 @@ canPrune = (Top/Bottom && canPruneHorizontal) ||
 
 只有至少保留一个候选时才替换假设集合；全部被排除 → 保留旧的（宁可保守也不删光）。
 
-## 7.7 阶段四：掩码激活判定
+## 9.7 阶段四：掩码激活判定
 
 ```
 switch (seedKind_):
@@ -1542,7 +1908,7 @@ switch (seedKind_):
     └─ 无越界信息，只能等看到迷宫两端的墙后才确定位置
 ```
 
-## 7.8 阶段五：重建预估观察集
+## 9.8 阶段五：重建预估观察集
 
 ```
 observedEstimated_.clear()
@@ -1558,9 +1924,9 @@ for pos in observed:
         └─ observedEstimated_.insert(mapped)
 ```
 
-## 7.9 掩码在 I_proxy 中的作用
+## 9.9 掩码在 I_proxy 中的作用
 
-### 7.9.1 裁剪未知连通块 BFS
+### 9.9.1 裁剪未知连通块 BFS
 
 ```
 unknownComponentSizesTouchingView(target, localMap, areaMax)
@@ -1588,7 +1954,7 @@ unknownComponentSizesTouchingView(target, localMap, areaMax)
 └─ 返回展开到的未知格数量 (上限 areaMax)
 ```
 
-### 7.9.2 动态 α 中的未知比例
+### 9.9.2 动态 α 中的未知比例
 
 ```
 estimatedUnknownCount()
@@ -1602,7 +1968,7 @@ estimatedUnknownCount()
             (早期探索动力由 ρ_U 的偏大值自然增强)
 ```
 
-### 7.9.3 isInsideEstimatedMaze 的双重角色 (Reward.cpp:588)
+### 9.9.3 isInsideEstimatedMaze 的双重角色 (Reward.cpp:588)
 
 ```
 isInsideEstimatedMaze(localPos) → bool  // Reward.cpp:588
@@ -1618,7 +1984,7 @@ isInsideEstimatedMaze(localPos) → bool  // Reward.cpp:588
 1. `informationProxy()` 中统计 `N_new` — 只有落在估计迷宫内的未知格才计入
 2. `unknownComponentSizesTouchingView()` 中判断 BFS 起点 — 掩码外的候选无价值
 
-## 7.10 完整生命周期示例
+## 9.10 完整生命周期示例
 
 ```
 步 0: Agent 构造
@@ -1646,7 +2012,7 @@ isInsideEstimatedMaze(localPos) → bool  // Reward.cpp:588
   → 削弱开阔区域奖励, 鼓励收尾
 ```
 
-## 7.11 关键设计原则
+## 9.11 关键设计原则
 
 1. **不读真实坐标**：掩码完全从局部观察推断，AI 不应知道自己在迷宫中的真实 (row, col)
 2. **逐步收敛**：从无掩码 → 部分边界阻挡 → 完整 15×15 掩码。早期宁可高估未知面积也不做过度裁剪
@@ -1656,11 +2022,11 @@ isInsideEstimatedMaze(localPos) → bool  // Reward.cpp:588
 
 ---
 
-# 第八章：基础数据结构
+# 第十章：基础数据结构
 
 本章列出所有核心类型，按文件归属排列，标注精确 `file:line`。
 
-## 8.1 GameTypes.h — 基础类型与常量
+## 10.1 GameTypes.h — 基础类型与常量
 
 **Position & 常量** (`GameTypes.h:12-18`)：
 ```cpp
@@ -1677,7 +2043,7 @@ constexpr array<Position,4> kDirs={{{1,0},{-1,0},{0,1},{0,-1}}}; // 下上右左
 
 **passable()** (`GameTypes.h:38`) 界内&&≠"#"&&≠"B"；**scoreDelta()** (`GameTypes.h:45`) G→+50, T→-30
 
-## 8.2 Reward.h — Reward 系统
+## 10.2 Reward.h — Reward 系统
 
 ### Direction (`Reward.h:13-18`) `{Up, Down, Left, Right}` — 决定局部→15×15旋转变换
 
@@ -1710,32 +2076,32 @@ constexpr array<Position,4> kDirs={{{1,0},{-1,0},{0,1},{0,-1}}}; // 下上右左
 `parameters_`
 方法(cpp行): `pathResourceDelta(820)`, `pathKeepsResourceNonNegative(848)`, `informationProxy(882)`, `futureGainMarginal(934)`, `computeQEff(966)`, `marginPenalty(985)`, `updateAlphaSmooth(998)`, `evaluate(1079)`, `shortestPathOnKnownMap(1165)`
 
-## 8.3 RealtimeGreedyStrategy.h — 调试结构体
+## 10.3 RealtimeGreedyStrategy.h — 调试结构体
 
 - **GreedyCandidateDebug** (`RealtimeGreedyStrategy.h:14-29`) `{score,deltaR,I_proxy,tail,qEff,len,margin,pR,selected,...}`
 - **GreedyRejectedDebug** (`RealtimeGreedyStrategy.h:32-38`) `{target,tile,reason,pathLength}`
 - **GreedyStepDebug** (`RealtimeGreedyStrategy.h:41-55`) `{step,alpha,qEff,decision,candidates[],rejected[],closedSingletonGate,pocket}`
 - **GreedyRunResult** (`RealtimeGreedyStrategy.h:58-63`) `{path[],debugSteps[],gameOver}`
 
-## 8.4 ClosedSingletonLookaheadGate.h
+## 10.4 ClosedSingletonLookaheadGate.h
 
 - **ClosedSingletonGateCandidate** (`ClosedSingletonLookaheadGate.h:12-24`)
 - **ClosedSingletonGateDebug** (`ClosedSingletonLookaheadGate.h:27-44`) `{checked,triggered,candidateA,rewardA,bestNonClosedB,rewardB,combinedA,allowed,reason}`
 - **ClosedSingletonGateResult** (`ClosedSingletonLookaheadGate.h:53-58`) `{hasSelection,changed,selectedTarget/Path/Score}`
 - **ClosedSingletonGateRequest** (`ClosedSingletonLookaheadGate.h:59-69`) `{localCurrent,exit,context,localMap,poseEstimator,evaluator,candidates[]}`
 
-## 8.5 PocketAwareGreedy.h
+## 10.5 PocketAwareGreedy.h
 
 - **PocketCandidateDebug** (`PocketAwareGreedy.h:12-26`) `{baseScore,ownIproxy,remainI,scoreFirst,...}`
 - **PocketDebug** (`PocketAwareGreedy.h:28-39`)
 - **PocketDecision** (`PocketAwareGreedy.h:41-47`) `{enabled,target,path,score,debug}`
 
-## 8.6 BossStrategy.cpp — Boss 战
+## 10.6 BossStrategy.cpp — Boss 战
 
 - **BossPlanCandidate** (`BossStrategy.cpp:12-22`) `{ok,turns,sequence,cooldownAfter,lightScore,remainingTurnsAfter,...}`
 - **PlannerMemo** (`BossStrategy.cpp:24-26`) `{killExact: map<string,vector<BossPlanCandidate>>}`
 
-## 8.7 生命周期
+## 10.7 生命周期
 
 ```
 JSON→MazeData(GameTypes.h:28)
@@ -1749,7 +2115,7 @@ JSON→MazeData(GameTypes.h:28)
 
 ---
 
-# 第八章：参数总表
+# 第十一章：参数总表
 
 | 参数 | 值 | 位置 | 含义 |
 |---|---|---|---|
@@ -1776,3 +2142,287 @@ JSON→MazeData(GameTypes.h:28)
 | λ_G/λ_T | 1.0/1.0 | 金币/陷阱先验 (RewardConfig.h:115) | |
 | ρ_area_min | 0.001 | ρ_area clip 下界 (RewardConfig.h:67) | |
 | ε | 1e-6 | 防除零 (RewardConfig.h:121) | |
+
+---
+
+# 第十二章：Reward.cpp 文件全览
+
+本章列出 `Reward.cpp`（1167 行）中**所有函数**，按所属类分组，标注重要程度和相互调用关系。
+
+## 12.1 匿名 namespace 工具函数 (`Reward.cpp:9-18`)
+
+| 函数 | 行号 | 重要性 | 作用 |
+|---|---|---|---|
+| `insideEstimated(pos)` | 10 | 工具 | 判断 15×15 坐标是否在 `[0,14]×[0,14]` 内 |
+| `pathLength(path)` | 15 | 工具 | 路径步数 = `path.size()-1`，空路径返回 0 |
+
+这两个函数是纯粹的数值/坐标工具，不调用任何其他函数，被多个类的方法复用。
+
+## 12.2 LocalKnownMap 方法 (`Reward.cpp:31-317`)
+
+共 14 个方法。全部是 `LocalKnownMap` (`Reward.h:65`) 的成员函数。
+
+### 写入类（修改 cells_ 状态）
+
+| 方法 | 行号 | 重要性 | 作用 | 调用关系 |
+|---|---|---|---|---|
+| `setObserved(pos,tile)` | 31 | ★★ 核心 | 记录 3×3 观察到的格子 | 被 `updateKnownMap()` 调用 |
+| `setOutside(pos)` | 48 | ★ 重要 | 标记越界格（outside=true） | 被 `updateKnownMap()` 调用 |
+| `markBossTriggers(boss)` | 65 | ★ 重要 | 标记 Boss 四邻为触发区 | 被 `updateKnownMap()` 调用 |
+| `clearBoss(boss)` | 81 | ★ 重要 | Boss 击败后 tile 变 `" "` | 被 `triggerAdjacentBoss()` 调用 |
+| `markVisited(pos)` | 97 | ★★ 核心 | 标记已踩过 | 被 `applyCurrentCell()` 调用 |
+| `markCollected(pos)` | 111 | ★★ 核心 | 标记金币已拾取 | 被 `applyCurrentCell()` 调用 |
+| `markTriggered(pos)` | 125 | ★★ 核心 | 标记陷阱已触发 | 被 `applyCurrentCell()` 调用 |
+
+### 查询类（只读 cells_ 状态）
+
+| 方法 | 行号 | 重要性 | 作用 |
+|---|---|---|---|
+| `has(pos)` | 139 | 工具 | 格子是否在 cells_ map 中 |
+| `isObserved(pos)` | 153 | ★★ 核心 | 是否已被 3×3 观察 |
+| `isOutside(pos)` | 168 | 工具 | 是否越界 |
+| `isVisited(pos)` | 183 | ★★ 核心 | 是否已踩过（决定能否成为候选目标） |
+| `isCollected(pos)` | 198 | ★★ 核心 | 金币是否已被拾取 |
+| `isTriggered(pos)` | 213 | ★★ 核心 | 陷阱是否已被触发 |
+| `isBossTrigger(pos)` | 228 | ★ 重要 | 是否为 Boss 触发区 |
+| `isWalkableForPlanning(pos)` | 243 | ★★★ 关键 | 可通行=observed && ≠"#" && ≠"B"，路径搜索的核心条件 |
+| `tile(pos)` | 260 | ★★ 核心 | 读取已知类型，未观察返回 "U" |
+| `observedPositions()` | 275 | ★★★ 关键 | 返回所有已观察格坐标，候选生成和 α 统计的唯一数据源 |
+| `outsidePositions()` | 293 | 工具 | 返回越界格，掩码种子检测用 |
+| `knownCoins()` | 311 | ★★ 核心 | 返回已知未拾取金币，`futureGainMarginal()` 用 |
+
+## 12.3 MapPoseEstimator 方法 (`Reward.cpp:329-783`)
+
+| 方法 | 行号 | 重要性 | 作用 | 调用关系 |
+|---|---|---|---|---|
+| `MapPoseEstimator()` | 329 | 构造 | 调用 `initialize()` | → `initialize()` |
+| `initialize()` | 343 | ★★ | 创建默认 `{7,7}` 入口假设 | 被构造函数调用 |
+| `update(map,cur)` | 365 | ★★★ 关键 | 5 阶段：种子检测→包围盒→假设排除→掩码激活→重建预估观察集 | → `mapWithHypothesis()`, `insideEstimated()`, `observedPositions()`, `outsidePositions()` |
+| `best()` | 546 | 工具 | 返回最优假设 | getter |
+| `isMaskActive()` | 560 | ★★ | 掩码是否已激活 | getter |
+| `localToEstimatedGlobal(p)` | 574 | ★★ | 局部→15×15 坐标变换 | → `mapWithHypothesis()` |
+| `isInsideEstimatedMaze(p)` | 588 | ★★ | 掩码激活? `insideEstimated(mapped)` : true | → `localToEstimatedGlobal()` |
+| `estimatedUnknownCount()` | 603 | ★★ | 225 − `observedEstimated_.size()` | 被 `updateAlphaSmooth()` 调用 |
+| `estimatedObservedCount()` | 617 | 工具 | 已观察格去重计数 | 被 `shouldGoExit()` 调用 |
+| `unknownComponentSizesTouchingView(t,map,cap)` | 635 | ★★★ 关键 | BFS 展开未知连通块 | → `localToEstimatedGlobal()`, `insideEstimated()`, `observedPositions()` |
+| `unknownExtensionTouchesMazeEdge(t,map)` | 711 | ★ | 未知延伸是否触达边界（Boss-gated 判定用） | → `localToEstimatedGlobal()` |
+| `mapWithHypothesis(p,hp)` | 770 | ★★ | 按假设旋转+平移局部坐标 | 被 `update()` 和 `localToEstimatedGlobal()` 调用 |
+
+## 12.4 PathValueEvaluator 方法 (`Reward.cpp:794-1167`)
+
+| 方法 | 行号 | 重要性 | 作用 | 被谁调用 |
+|---|---|---|---|---|
+| `PathValueEvaluator(params)` | 794 | 构造 | 存储参数副本 | |
+| `parameters()` | 805 | 工具 | 返回参数只读引用 | `selectBestPath()` 等 |
+| `pathResourceDelta(path,map)` | 820 | ★★★ 关键 | 路径资源变化 Σ(50G-30T)，跳过 path[0] | `evaluate()`, `computeQEff()`, `buildResult()` |
+| `pathKeepsResourceNonNegative(path,R,map)` | 848 | ★★★ 关键 | 前缀资源非负检查 | `evaluate()` |
+| `informationProxy(t,map,est,cap,force)` | 882 | ★★★ 关键 | I_proxy = 60×Σmin(|C|,cap)×ρ_area | `evaluate()`, `fallbackPath()` |
+| `futureGainMarginal(t,path,map)` | 934 | ★★ 核心 | V_tail = max 50/(dist+1) 排除路径上金币 | `evaluate()` |
+| `computeQEff(ctx,map)` | 966 | ★★★ 关键 | q_eff = max(q_ref, 1.0) | `evaluate()`, `selectBestPath()`, Pocket |
+| `marginPenalty(r)` | 985 | ★★ 核心 | φ = 8×((30-r)/30)² | `evaluate()` |
+| `updateAlphaSmooth(prev,map,est)` | 998 | ★★★ 关键 | 动态 α 更新 (密度统计+EMA平滑) | `run()` 每步 |
+| `evaluate(path,t,ctx,map,est)` | 1079 | ★★★ 关键 | 主评分函数，组装 5 项 | `selectBestPath()`, `shouldGoExit()`, Gate, Pocket |
+| `shortestPathOnKnownMap(s,t,map)` | 1133 | ★★★ 关键 | BFS 在 localMap_ 上求最短路 | `routePath()` (greedy/smart) |
+
+## 12.5 函数调用关系图
+
+```
+run() 每步:
+  ├→ updateAlphaSmooth() → observedPositions(), estimatedUnknownCount(), insideEstimated()
+  └→ selectBestPath()
+       ├→ candidateTargets() → routePath() → shortestPathOnKnownMap()
+       └→ evaluate() [每个候选]
+            ├→ pathResourceDelta() → isCollected(), isTriggered(), tile()
+            ├→ pathKeepsResourceNonNegative() → tile()
+            ├→ informationProxy() → observedPositions(),
+            │     unknownComponentSizesTouchingView() → mapWithHypothesis(), insideEstimated()
+            ├→ futureGainMarginal() → knownCoins(), shortestPathOnKnownMap()
+            ├→ computeQEff() → pathResourceDelta()
+            └→ marginPenalty()
+```
+
+---
+
+# 第十三章：ResourcePickupStrategy.cpp 文件全览
+
+## 13.1 概述
+
+`ResourcePickupStrategy.cpp` (485 行) 实现 PDF 第一问的资源拾取策略。与 Reward 贪心系统**完全独立**——使用自己的评分逻辑、自己的候选生成、自己的 3×3 局部视野规则。
+
+入口函数是 `solveResourcePickupJson(source)` (`ResourcePickupStrategy.cpp:373`)，由 `AIPlayerEngine::RunResourcePickup()` 调用。
+
+## 13.2 全部函数列表
+
+### 重要函数（算法核心）
+
+| 函数 | 行号 | 作用 |
+|---|---|---|
+| `solveResourcePickupJson(source)` | 373 | **入口**：解析 JSON → 运行贪心 → 构建输出 |
+| `allShortestPaths(grid, targets)` | 98 | 预计算所有目标之间的最短路径 (Floyd/BFS) |
+| `chooseGreedyTarget(...)` | 容器内 | 每轮选择比值最高的候选目标 |
+| `parseResourceGrid(source, ...)` | 47 | 解析 3×3 网格 (P/G/T/.) |
+| `buildFrames(grid, path, ...)` | 310 | 构建输出 JSON 的 frames[] 数组 |
+
+### 工具函数
+
+| 函数 | 行号 | 作用 |
+|---|---|---|
+| `isTriggered(mask, index)` | 155 | 位掩码检查：该陷阱是否已触发 |
+| `pathDelta(path, grid, trapMask, collected)` | 171 | 计算路径资源变化（G→+1 值, T→-1 值） |
+| `adjacentGoldCount(grid, trap)` | 200 | 统计陷阱周围的金币数（用于风险评估） |
+| `cleanupScore(grid, path, trapMask, ...)` | 223 | 评估"清理"某个路径的价值 |
+| `betterCandidate(best, cand)` | 251 | 比较两个候选：优先比值高，同比值选步数少 |
+| `candidatesJson(cands, selected)` | 279 | 候选列表转 JSON 调试信息 |
+| `attachFrameDebug(frames, greedyRounds)` | 359 | 将贪心轮次信息附加到 frame 的 debug 字段 |
+
+## 13.3 调用关系
+
+```
+solveResourcePickupJson(source)  ← 入口
+  → parseResourceGrid(source, start, targets, traps)
+  → allShortestPaths(grid, targets+traps)  // 预计算全源最短路
+  → [主循环] 每轮:
+      → pathDelta(path, grid, mask, collected)  // 计算候选路径收益
+      → cleanupScore(grid, path, mask, ...)     // 评估路径价值
+      → adjacentGoldCount(grid, trap)           // 陷阱风险评估
+      → betterCandidate(best, cand)             // 选最优候选
+  → buildFrames(grid, path, ...)
+      → attachFrameDebug(frames, greedyRounds)
+```
+
+## 13.4 与 Reward 系统的区别
+
+| | ResourcePickupStrategy | Reward 系统 |
+|---|---|---|
+| 评分 | 投影比值 `gain/len`，比值低于当前 ratio 就停止 | Dinkelbach 加性 surrogate |
+| 视野 | 3×3 全局可见（一次性给定整个 grid） | 3×3 逐步观察（localMap 累积） |
+| 探索 | 无 I_proxy 概念，纯资源拾取 | 有完整的 I_proxy + α 动态调节 |
+| 停止 | 比值无法提高时立即停止 | 多条件综合判断（τ/ρ_min/worthwhile） |
+| 用途 | PDF 第一问（简单资源拾取） | 主迷宫探索算法 |
+
+---
+
+# 第十四章：RealtimeGreedyStrategy.cpp 文件全览
+
+本章列出 `RealtimeGreedyStrategy.cpp`（~930 行）中**所有函数**，标注重要程度和相互调用关系。该文件是路径 A（Reward 贪心）的核心——`MemoryGreedyAgent` 类的完整实现。
+
+## 14.1 MemoryGreedyAgent 成员变量 (`RealtimeGreedyStrategy.cpp:37-147`)
+
+| 变量 | 行号 | 作用 |
+|---|---|---|
+| `maze_` | 37 前 | 真实迷宫引用（3×3 视野的真相来源） |
+| `routeAlgorithm_` | 130 | 路由器选择："greedy"/"dijkstra"/"astar"/"branch_bound"/"divide_conquer" |
+| `localMap_` | 131 前 | AI 局部记忆地图 |
+| `poseEstimator_` | 132 前 | 掩码姿态估计器 |
+| `evaluator_` | 133 前 | 评分器（含全部 reward 参数） |
+| `state_` | 134 前 | `{resource, steps, collectedGold, alphaSmooth}` |
+| `localToReal_` | 135 | 局部→真实坐标映射 |
+| `realToLocal_` | 136 | 真实→局部坐标映射 |
+| `knownBosses_` | 137 | 已发现 Boss 的局部坐标 |
+| `defeatedBosses_` | 138 | 对应 Boss 是否已击败 |
+| `bossBattleResult_` | 139 前 | Boss 战预计算结果 (JSON) |
+| `bossBattleCanWin_` | 140 | 能否在 minRounds 内击败所有 Boss |
+| `coinConsumption_` | 141 | 复活所需金币数（来自输入 JSON） |
+| `pendingRevive_` | 142 | 是否待复活（下帧传送回起点） |
+| `gameOver_` | 143 | Boss 战失败且钱不够 → 游戏结束 |
+| `localExit_` | 144 | 出口的局部坐标（观察到后记录） |
+| `currentTarget_` | 145 | 当前保持的目标（目标保持机制） |
+| `currentTargetScore_` | 146 | 该目标的分数 |
+| `currentTargetFromPocket_` | 147 | 当前目标是否来自 Pocket |
+
+## 14.2 全部函数列表
+
+### ★★★ 关键函数
+
+| 函数 | 行号 | 作用 | 调用关系 |
+|---|---|---|---|
+| `run()` | 58 | **主循环**：6 步流水线 × 900 次 | → 所有其他方法 |
+| `selectBestPath(...)` | 551 | **核心决策**：评分→Gate→Pocket→Hold→Fallback | → `evaluate()`, `routePath()`, `shouldGoExit()`, ClosedSingletonGate, Pocket |
+| `updateKnownMap(r,l)` | 175 | 3×3 视野 → `localMap_` | → `realInBounds()`, `setObserved()`, `markBossTriggers()` |
+| `applyCurrentCell(l)` | 229 | 资源结算 + Boss 触发 | → `markVisited()`, `markCollected()`, `triggerAdjacentBoss()` |
+
+### ★★ 核心函数
+
+| 函数 | 行号 | 作用 | 调用关系 |
+|---|---|---|---|
+| `triggerAdjacentBoss(l)` | 276 | Boss 战斗/复活/GameOver 三分支 | → `clearBoss()` |
+| `shouldGoExit(...)` | 837 | 停止探索判定 (τ/R<1 保护/worthwhile) | |
+| `fallbackPath(l)` | 869 | 无候选时的脱困路径 | → `routePath()`, `informationProxy()` |
+| `candidateTargets(l)` | 336 | 生成候选目标集 | → `routePath()` |
+| `bossGatedAreaMaxTargets(l)` | 433 | Boss-gated 区域判定 | → BFS on `localMap_` |
+| `routePath(s,t)` | 525 | 路由器分发 (5 种算法) | → `shortestPathOnKnownMap()` / `astarPath()` / `dijkstraPath()` 等 |
+| `buildContext(l)` | 400 | 构建评分上下文 | → `routePath()`, `bossGatedAreaMaxTargets()` |
+
+### ★ 重要工具函数
+
+| 函数 | 行号 | 作用 |
+|---|---|---|
+| `realInBounds(r,c)` | 159 | 真实坐标是否在 15×15 内 |
+| `bossIndexAt(l)` | 259 | 查 Boss 在 `knownBosses_` 中的下标 |
+| `fillStatusDebug(...)` | 314 | 复活/GameOver 帧的调试信息填充 |
+| `recordRejectedTargets(l,debug)` | 366 | 记录被过滤掉的格子及原因 |
+| `attachPocketRealPositions(pocket)` | 781 | Pocket 调试信息中局部坐标→真实坐标 |
+| `markSelectedDebug(t,debug)` | 810 | 标记本步实际选中的目标 |
+
+## 14.3 主循环调用关系图
+
+```
+run()  [每步]
+  ├─ ① updateKnownMap(real, local)
+  │     └─ realInBounds() → localMap_.setObserved() / setOutside()
+  │        → bossIndexAt() → markBossTriggers()
+  │
+  ├─ ② applyCurrentCell(localCurrent)
+  │     └─ markVisited() → markCollected() / markTriggered()
+  │        → triggerAdjacentBoss() → clearBoss() / pendingRevive_ / gameOver_
+  │
+  ├─ ③ poseEstimator_.update(localMap_, localCurrent)
+  │
+  ├─ ④ updateAlphaSmooth(prevAlpha, localMap_, poseEstimator_)
+  │
+  ├─ ⑤ if pendingRevive_ → 传送回起点, continue
+  │     if gameOver_ → break
+  │
+  ├─ ⑥ selectBestPath(localCurrent, realCurrent, step, debug)
+  │     ├─ buildContext(localCurrent)
+  │     │    └─ routePath() → exitPath
+  │     │    └─ bossGatedAreaMaxTargets() → bossGatedTargets
+  │     │
+  │     ├─ computeQEff(context, localMap_) → debug.qEff
+  │     ├─ recordRejectedTargets(localCurrent, debug)
+  │     ├─ candidateTargets(localCurrent)
+  │     │    └─ for each observed: isVisited? walkable? routePath empty? → targets[]
+  │     │
+  │     ├─ for each target in targets:
+  │     │    ├─ routePath(current, target) → path
+  │     │    ├─ evaluate(path, target, context, localMap_, poseEstimator_) → score
+  │     │    ├─ pathResourceDelta(path), informationProxy(...), futureGainMarginal(...)
+  │     │    ├─ computeQEff, marginPenalty
+  │     │    └─ detourCost = len + len(target→exit) − len(exit)  → hasWorthwhile
+  │     │
+  │     ├─ ClosedSingletonGate → 可能改选 A 或 B
+  │     ├─ [决策链]
+  │     │    ├─ shouldGoExit? → return exitPath
+  │     │    ├─ heldTarget still valid? → Pocket? → hold or switch
+  │     │    ├─ bestPath non-empty? → return bestPath
+  │     │    └─ return fallbackPath()
+  │     │
+  │     └─ attachPocketRealPositions, markSelectedDebug
+  │
+  └─ ⑦ localToReal_[nextLocal] → 更新 current, path.push
+```
+
+## 14.4 关键逻辑速查
+
+| 逻辑 | 位置 | 速查 |
+|---|---|---|
+| 目标保持 | 行 700-735 | `heldScore` vs `bestScore + switchMargin(5.0)` |
+| Pocket 插入点 | 行 684 | 在目标保持判断**之前** |
+| ClosedSingleton 插入点 | 行 620-660 | 在候选评分循环**之后**、决策链**之前** |
+| worthwhile 计算 | 行 600-605 | `score > qEff × detourCost`，满足即 `hasWorthwhile=true` |
+| detourCost 计算 | 行 603-605 | `pathLen + (target→exit len) − (current→exit len)` |
+| 绕路重算 (Gate 改选) | 行 643-655 | Gate 改选后只对非 A 候选重算 worthwhile |
+| 低 ratio 保护 | 行 850-852 | `R/L<1 && collectedGold<3` → 禁止走出口 |
+| 零资源保护 | 行 847 | `R==0 && hasNonNegativeTarget` → 禁止空手离场 |
+| 掩码未知比例 | 行 534 | `estimatedObservedCount() / 225` → `debug.observedRatio` |
+| 面积上限选择 | 行 543-544 | `exitPath 空? areaMax=12 : knownExitAreaCap=1.5` |

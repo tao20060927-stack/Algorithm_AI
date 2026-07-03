@@ -1,17 +1,16 @@
 ﻿#include "ResourcePickupStrategy.h"
 
-#include <algorithm>
 #include <array>
 #include <cmath>
 #include <limits>
-#include <queue>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
 namespace ai_player {
 namespace {
-constexpr std::array<Position, 4> kPickupDirs{{{0, 1}, {1, 0}, {-1, 0}, {0, -1}}};
+constexpr std::array<Position, 4> kPickupDirs{{{-1, 0}, {0, 1}, {1, 0}, {0, -1}}};
+constexpr double kEps = 1e-9;
 
 struct ResourceCell {
     Position pos;
@@ -19,17 +18,21 @@ struct ResourceCell {
     std::string tile;
 };
 
-struct GreedyCandidate {
+struct BundleEval {
     int candidateIndex = -1;
     Position target{kInvalid};
-    std::vector<Position> path;
-    int delta = 0;
-    int cleanup = 0;
-    int nextMask = 0;
+    std::string cell;
+    int cellValue = 0;
+    int adjGoldCount = 0;
+    int bundleValue = 0;
+    int bundleLen = 0;
+    double bundleScore = -std::numeric_limits<double>::infinity();
+    std::vector<Position> bundlePath;
     int projectedResource = 0;
     int projectedSteps = 0;
-    bool actionable = false;
-    double score = -std::numeric_limits<double>::infinity();
+    double projectedRatio = 0.0;
+    bool valid = false;
+    bool selected = false;
 };
 
 /**
@@ -42,7 +45,7 @@ struct GreedyCandidate {
  * 输出：
  *   - 无返回值；格式错误时抛出异常。
  * 关键逻辑：
- *   - 只接受 PDF 第一问需要的 P、G、T、. 和可选墙 #，保证贪心选择的输入含义明确。
+ *   - 只接受 P、G、T、. 和可选墙 #；该策略固定用于 3x3 局部资源贪心。
  */
 void parseResourceGrid(const Json &source,
                        std::vector<std::vector<std::string>> &grid,
@@ -85,72 +88,28 @@ void parseResourceGrid(const Json &source,
 }
 
 /**
- * 功能：枚举两点之间的所有最短可行路径。
+ * 功能：判断 3x3 坐标是否在边界内。
  * 输入：
- *   - grid：3x3 地图，# 表示不可通行。
- *   - start：当前玩家坐标。
- *   - target：候选资源格坐标。
+ *   - pos：待检查坐标。
  * 输出：
- *   - 返回所有包含 start 和 target 的最短路径；不可达时返回空数组。
+ *   - 返回该坐标是否位于 3x3 网格内。
  * 关键逻辑：
- *   - 先用 BFS 计算最短距离，再只沿距离递增的边回溯所有最短路径。
+ *   - 所有局部束候选和邻接金币都必须先通过边界检查。
  */
-std::vector<std::vector<Position>> allShortestPaths(const std::vector<std::vector<std::string>> &grid,
-                                                    Position start,
-                                                    Position target)
+bool inside3x3(Position pos)
 {
-    std::vector distance(3, std::vector<int>(3, -1));
-    std::queue<Position> queue;
-    queue.push(start);
-    distance[start.first][start.second] = 0;
-
-    while (!queue.empty()) {
-        const auto [row, col] = queue.front();
-        queue.pop();
-        for (const auto [dr, dc] : kPickupDirs) {
-            const int nr = row + dr;
-            const int nc = col + dc;
-            if (nr < 0 || nc < 0 || nr >= 3 || nc >= 3 || distance[nr][nc] != -1 || grid[nr][nc] == "#") {
-                continue;
-            }
-            distance[nr][nc] = distance[row][col] + 1;
-            queue.push({nr, nc});
-        }
-    }
-
-    if (distance[target.first][target.second] < 0) return {};
-
-    std::vector<std::vector<Position>> paths;
-    std::vector<Position> path{start};
-    auto dfs = [&](auto &&self, Position current) -> void {
-        if (current == target) {
-            paths.push_back(path);
-            return;
-        }
-        const auto [row, col] = current;
-        for (const auto [dr, dc] : kPickupDirs) {
-            const int nr = row + dr;
-            const int nc = col + dc;
-            if (nr < 0 || nc < 0 || nr >= 3 || nc >= 3 || grid[nr][nc] == "#") continue;
-            if (distance[nr][nc] != distance[row][col] + 1) continue;
-            path.push_back({nr, nc});
-            self(self, {nr, nc});
-            path.pop_back();
-        }
-    };
-    dfs(dfs, start);
-    return paths;
+    return pos.first >= 0 && pos.second >= 0 && pos.first < 3 && pos.second < 3;
 }
 
 /**
- * 功能：判断某个资源格是否已经触发。
+ * 功能：判断某个资源编号是否已经结算。
  * 输入：
- *   - mask：已触发资源集合。
- *   - index：资源格编号。
+ *   - mask：已结算资源集合。
+ *   - index：资源编号。
  * 输出：
- *   - 返回该编号对应的资源格是否已被触发。
+ *   - 返回该资源是否已触发。
  * 关键逻辑：
- *   - 用位集合记录 G/T 是否结算，保证重复经过同一资源格时不会重复加分或扣分。
+ *   - 金币和陷阱都只触发一次；重复经过已触发格不会再次加分或扣分。
  */
 bool isTriggered(int mask, int index)
 {
@@ -158,142 +117,253 @@ bool isTriggered(int mask, int index)
 }
 
 /**
- * 功能：模拟沿候选路径移动后的资源变化。
+ * 功能：查找指定坐标对应的资源编号。
  * 输入：
- *   - path：从当前位置到候选目标的路径。
- *   - resources：所有资源格。
- *   - mask：进入路径前已经触发的资源集合。
- * 输出：
- *   - 通过 nextMask 返回移动后的触发集合，函数返回本段路径新增资源值。
- * 关键逻辑：
- *   - 路径中途经过的 G/T 也会被触发；这符合“走到资源格就结算”的规则。
- */
-int pathDelta(const std::vector<Position> &path,
-              const std::vector<ResourceCell> &resources,
-              int mask,
-              int &nextMask)
-{
-    int delta = 0;
-    nextMask = mask;
-    for (size_t step = 1; step < path.size(); ++step) {
-        for (size_t i = 0; i < resources.size(); ++i) {
-            if (resources[i].pos == path[step] && !isTriggered(nextMask, static_cast<int>(i))) {
-                nextMask |= 1 << i;
-                delta += resources[i].value;
-                break;
-            }
-        }
-    }
-    return delta;
-}
-
-/**
- * 功能：统计陷阱旁边相邻的金币数量。
- * 输入：
- *   - grid：3x3 输入地图。
- *   - trap：陷阱格坐标。
- * 输出：
- *   - 返回上下左右相邻格中 G 的数量。
- * 关键逻辑：
- *   - 清理度只作为第二优先级；陷阱周围金币越多，说明这条路径清理了越关键的风险点。
- */
-int adjacentGoldCount(const std::vector<std::vector<std::string>> &grid, Position trap)
-{
-    int count = 0;
-    for (const auto [dr, dc] : kDirs) {
-        const int row = trap.first + dr;
-        const int col = trap.second + dc;
-        if (row >= 0 && col >= 0 && row < 3 && col < 3 && grid[row][col] == "G") ++count;
-    }
-    return count;
-}
-
-/**
- * 功能：计算一条路径的清理度。
- * 输入：
- *   - grid：3x3 输入地图。
- *   - path：当前候选最短路径。
  *   - resources：所有 G/T 资源格。
- *   - mask：进入路径前已经触发的资源集合。
+ *   - pos：待查找坐标。
  * 输出：
- *   - 返回路径中新触发陷阱周围相邻金币数量之和。
+ *   - 返回资源编号；如果该坐标不是资源格，返回 -1。
  * 关键逻辑：
- *   - 只统计新触发的 T；重复经过已触发陷阱不再增加清理度，避免重复奖励。
+ *   - 通过坐标映射到资源 mask 位，用于判断该格是否已经结算。
  */
-int cleanupScore(const std::vector<std::vector<std::string>> &grid,
-                 const std::vector<Position> &path,
-                 const std::vector<ResourceCell> &resources,
-                 int mask)
+int resourceIndexAt(const std::vector<ResourceCell> &resources, Position pos)
 {
-    int score = 0;
-    int localMask = mask;
-    for (size_t step = 1; step < path.size(); ++step) {
-        for (size_t i = 0; i < resources.size(); ++i) {
-            if (resources[i].pos != path[step] || isTriggered(localMask, static_cast<int>(i))) continue;
-            localMask |= 1 << i;
-            if (resources[i].tile == "T") score += adjacentGoldCount(grid, path[step]);
-            break;
-        }
+    for (int i = 0; i < static_cast<int>(resources.size()); ++i) {
+        if (resources[i].pos == pos) return i;
     }
-    return score;
+    return -1;
 }
 
 /**
- * 功能：比较两个贪心候选目标。
+ * 功能：计算进入某个格子时的单格资源变化。
+ * 输入：
+ *   - resources：所有 G/T 资源格。
+ *   - pos：候选格坐标。
+ *   - mask：当前已触发资源集合。
+ * 输出：
+ *   - 返回未触发 G/T 的资源变化；非资源格或已触发资源返回 0。
+ * 关键逻辑：
+ *   - 该值对应公式中的 cellValue(x)。
+ */
+int cellValueAt(const std::vector<ResourceCell> &resources, Position pos, int mask)
+{
+    const int index = resourceIndexAt(resources, pos);
+    if (index < 0 || isTriggered(mask, index)) return 0;
+    return resources[index].value;
+}
+
+/**
+ * 功能：计算候选格的邻接未收集金币列表。
+ * 输入：
+ *   - grid：3x3 输入网格。
+ *   - resources：所有 G/T 资源格。
+ *   - target：候选格坐标。
+ *   - mask：当前已触发资源集合。
+ * 输出：
+ *   - 返回按“上、右、下、左”排序的未收集邻接金币坐标。
+ * 关键逻辑：
+ *   - 局部束只顺手收集候选格四邻域内尚未收集的金币，不扩展搜索其它位置。
+ */
+std::vector<Position> adjacentUncollectedGolds(const std::vector<std::vector<std::string>> &grid,
+                                               const std::vector<ResourceCell> &resources,
+                                               Position target,
+                                               int mask)
+{
+    std::vector<Position> golds;
+    for (const auto [dr, dc] : kPickupDirs) {
+        const Position next{target.first + dr, target.second + dc};
+        if (!inside3x3(next) || grid[next.first][next.second] != "G") continue;
+        const int index = resourceIndexAt(resources, next);
+        if (index >= 0 && !isTriggered(mask, index)) golds.push_back(next);
+    }
+    return golds;
+}
+
+/**
+ * 功能：计算候选格子的局部束 reward。
+ * 输入：
+ *   - grid：3x3 输入网格。
+ *   - current：当前玩家坐标。
+ *   - target：四邻域候选格坐标。
+ *   - resources：所有 G/T 资源格。
+ *   - mask：当前已触发资源集合。
+ *   - candidateIndex：候选方向编号，按上、右、下、左递增。
+ * 输出：
+ *   - 返回 BundleEval，包含 BundleValue、BundleLen、BundleScore 和局部束路径。
+ * 关键逻辑：
+ *   - 不做 DP、不枚举路径，只计算“走到 target 并顺手收集 target 四邻域金币”的固定局部束。
+ */
+BundleEval evaluateBundleCandidate(const std::vector<std::vector<std::string>> &grid,
+                                   Position current,
+                                   Position target,
+                                   const std::vector<ResourceCell> &resources,
+                                   int mask,
+                                   int candidateIndex)
+{
+    BundleEval eval;
+    eval.candidateIndex = candidateIndex;
+    eval.target = target;
+    if (!inside3x3(target) || grid[target.first][target.second] == "#") return eval;
+
+    const std::vector<Position> golds = adjacentUncollectedGolds(grid, resources, target, mask);
+    eval.valid = true;
+    eval.cell = grid[target.first][target.second];
+    eval.cellValue = cellValueAt(resources, target, mask);
+    eval.adjGoldCount = static_cast<int>(golds.size());
+    eval.bundleValue = eval.cellValue + kGoldValue * eval.adjGoldCount;
+    eval.bundleLen = eval.adjGoldCount == 0 ? 1 : 2 * eval.adjGoldCount;
+    eval.bundleScore = eval.bundleLen == 0 ? 0.0 : static_cast<double>(eval.bundleValue) / eval.bundleLen;
+
+    eval.bundlePath = {current, target};
+    for (int i = 0; i < static_cast<int>(golds.size()); ++i) {
+        if (i > 0) eval.bundlePath.push_back(target);
+        eval.bundlePath.push_back(golds[i]);
+    }
+    return eval;
+}
+
+/**
+ * 功能：比较两个局部束候选。
  * 输入：
  *   - best：当前最优候选。
  *   - candidate：待比较候选。
  * 输出：
- *   - 如果 candidate 应成为新的最优候选，返回 true。
+ *   - candidate 应替换 best 时返回 true。
  * 关键逻辑：
- *   - 主准则是投影后的总资源/总步数比值；并列时优先清理度，再优先新增资源更高。
+ *   - 按 BundleScore、BundleValue、BundleLen、方向顺序进行贪心 tie-break；不使用全路径搜索。
  */
-bool betterCandidate(const GreedyCandidate &best, const GreedyCandidate &candidate)
+bool betterBundle(const BundleEval &best, const BundleEval &candidate)
 {
-    constexpr double kEps = 1e-12;
-    if (candidate.score > best.score + kEps) return true;
-    if (std::abs(candidate.score - best.score) <= kEps && candidate.cleanup != best.cleanup) {
-        return candidate.cleanup > best.cleanup;
+    if (!candidate.valid) return false;
+    if (!best.valid) return true;
+    if (candidate.bundleScore > best.bundleScore + kEps) return true;
+    if (std::abs(candidate.bundleScore - best.bundleScore) <= kEps && candidate.bundleValue != best.bundleValue) {
+        return candidate.bundleValue > best.bundleValue;
     }
-    if (std::abs(candidate.score - best.score) <= kEps && candidate.delta != best.delta) {
-        return candidate.delta > best.delta;
-    }
-    if (std::abs(candidate.score - best.score) <= kEps && candidate.delta == best.delta) {
-        if (candidate.path.size() != best.path.size()) return candidate.path.size() < best.path.size();
-        if (candidate.target.first != best.target.first) return candidate.target.first < best.target.first;
-        return candidate.target.second < best.target.second;
+    if (std::abs(candidate.bundleScore - best.bundleScore) <= kEps && candidate.bundleValue == best.bundleValue &&
+        candidate.bundleLen != best.bundleLen) {
+        return candidate.bundleLen < best.bundleLen;
     }
     return false;
 }
 
 /**
- * 功能：把当前轮所有候选写成调试 JSON。
+ * 功能：从当前位置四邻域中选择 BundleScore 最大的候选。
  * 输入：
- *   - candidates：当前轮每个未触发资源格的贪心评分。
- *   - selected：最终选中的候选资源编号。
+ *   - grid：3x3 输入网格。
+ *   - current：当前玩家坐标。
+ *   - resources：所有 G/T 资源格。
+ *   - mask：当前已触发资源集合。
+ *   - candidates：输出四邻域候选评分表。
  * 输出：
- *   - 返回前端和测试可读的候选表。
+ *   - 返回最佳局部束候选；无可走候选时 valid=false。
  * 关键逻辑：
- *   - 暴露 delta、projectedResource、projectedSteps 和 score，方便核对贪心为何继续或停止。
+ *   - 每轮只检查上、右、下、左四个格子，每个格子只看自己的四邻域金币，因此 reward 计算为 O(1)。
  */
-Json candidatesJson(const std::vector<GreedyCandidate> &candidates, int selected)
+BundleEval chooseBestBundleGreedy(const std::vector<std::vector<std::string>> &grid,
+                                  Position current,
+                                  const std::vector<ResourceCell> &resources,
+                                  int mask,
+                                  std::vector<BundleEval> &candidates)
+{
+    BundleEval best;
+    int candidateIndex = 0;
+    for (const auto [dr, dc] : kPickupDirs) {
+        const Position target{current.first + dr, current.second + dc};
+        BundleEval candidate = evaluateBundleCandidate(grid, current, target, resources, mask, candidateIndex++);
+        if (candidate.valid) {
+            candidates.push_back(candidate);
+            if (betterBundle(best, candidate)) best = candidate;
+        }
+    }
+    return best;
+}
+
+/**
+ * 功能：把坐标路径转为前端 JSON。
+ * 输入：
+ *   - path：坐标序列。
+ * 输出：
+ *   - 返回 [{"row":r,"col":c}, ...] 形式的 JSON 数组。
+ * 关键逻辑：
+ *   - 顶层 path、决策路径和播放帧统一使用同一坐标格式。
+ */
+Json pathJson(const std::vector<Position> &path)
+{
+    Json result = Json::array();
+    for (const auto &pos : path) result.push_back({{"row", pos.first}, {"col", pos.second}});
+    return result;
+}
+
+/**
+ * 功能：把局部束候选写成调试 JSON。
+ * 输入：
+ *   - candidates：当前轮四邻域候选。
+ *   - selected：最终选中的候选方向编号；未执行时为 -1。
+ * 输出：
+ *   - 返回前端评分监控可读的候选表。
+ * 关键逻辑：
+ *   - 同时输出新字段和兼容字段，让前端可以展示 BundleScore，也能继续使用旧表格逻辑。
+ */
+Json candidatesJson(const std::vector<BundleEval> &candidates, int selected)
 {
     Json rows = Json::array();
     for (const auto &candidate : candidates) {
-        Json path = Json::array();
-        for (const auto &pos : candidate.path) path.push_back({{"row", pos.first}, {"col", pos.second}});
         rows.push_back({{"target", {{"row", candidate.target.first}, {"col", candidate.target.second}}},
-                        {"pathLen", candidate.path.empty() ? 0 : static_cast<int>(candidate.path.size()) - 1},
-                        {"delta", candidate.delta},
-                        {"cleanup", candidate.cleanup},
-                        {"actionable", candidate.actionable},
+                        {"cell", candidate.cell},
+                        {"cellValue", candidate.cellValue},
+                        {"adjGoldCount", candidate.adjGoldCount},
+                        {"bundleValue", candidate.bundleValue},
+                        {"bundleLen", candidate.bundleLen},
+                        {"bundleScore", candidate.bundleScore},
+                        {"pathLen", candidate.bundleLen},
+                        {"delta", candidate.bundleValue},
+                        {"cleanup", candidate.adjGoldCount},
+                        {"actionable", candidate.bundleValue > 0},
                         {"projectedResource", candidate.projectedResource},
                         {"projectedSteps", candidate.projectedSteps},
-                        {"score", candidate.score},
-                        {"path", path},
+                        {"projectedRatio", candidate.projectedRatio},
+                        {"score", candidate.bundleScore},
+                        {"executedBundlePath", pathJson(candidate.bundlePath)},
                         {"selected", candidate.candidateIndex == selected}});
     }
     return rows;
+}
+
+/**
+ * 功能：执行一段局部束路径并结算资源。
+ * 输入：
+ *   - path：本轮局部束路径，包含当前位置。
+ *   - resources：所有 G/T 资源格。
+ *   - fullPath：总路径输出参数。
+ *   - mask：已触发资源集合，会在执行中更新。
+ *   - resource：累计资源，会在执行中更新。
+ *   - steps：累计步数，会在执行中更新。
+ * 输出：
+ *   - 返回本段实际新增资源。
+ * 关键逻辑：
+ *   - 从 path[1] 开始逐步移动；已触发的 G/T 重复经过时不再结算。
+ */
+int executeBundlePath(const std::vector<Position> &path,
+                      const std::vector<ResourceCell> &resources,
+                      std::vector<Position> &fullPath,
+                      int &mask,
+                      int &resource,
+                      int &steps)
+{
+    int delta = 0;
+    for (size_t i = 1; i < path.size(); ++i) {
+        const Position pos = path[i];
+        fullPath.push_back(pos);
+        ++steps;
+        const int index = resourceIndexAt(resources, pos);
+        if (index >= 0 && !isTriggered(mask, index)) {
+            mask |= 1 << index;
+            resource += resources[index].value;
+            delta += resources[index].value;
+        }
+    }
+    return delta;
 }
 
 /**
@@ -323,16 +393,14 @@ Json buildFrames(const std::vector<std::vector<std::string>> &grid,
         const auto [row, col] = path[step];
         int delta = 0;
         bool triggered = false;
-        for (size_t i = 0; i < resources.size(); ++i) {
-            if (resources[i].pos == Position{row, col} && !isTriggered(mask, static_cast<int>(i))) {
-                mask |= 1 << i;
-                delta = resources[i].value;
-                resource += delta;
-                triggered = true;
-                if (resources[i].tile == "G") ++goldTriggers;
-                if (resources[i].tile == "T") ++trapTriggers;
-                break;
-            }
+        const int index = resourceIndexAt(resources, path[step]);
+        if (index >= 0 && !isTriggered(mask, index)) {
+            mask |= 1 << index;
+            delta = resources[index].value;
+            resource += delta;
+            triggered = true;
+            if (resources[index].tile == "G") ++goldTriggers;
+            if (resources[index].tile == "T") ++trapTriggers;
         }
         frames.push_back({{"step", step},
                           {"row", row},
@@ -354,7 +422,6 @@ Json buildFrames(const std::vector<std::vector<std::string>> &grid,
  *   - 无返回值，直接给对应 frame 添加 debug 字段。
  * 关键逻辑：
  *   - 前端评分监控按当前播放帧读取 frames[idx].debug，因此把轮级 reward 表挂到对应步数的帧上。
- *   - stop 轮通常发生在最终位置，若 step 超过 frames 范围则绑定到最后一帧，保证停止原因也能显示。
  */
 void attachFrameDebug(Json &frames, const Json &greedyRounds)
 {
@@ -370,115 +437,126 @@ void attachFrameDebug(Json &frames, const Json &greedyRounds)
 }
 } // namespace
 
+/**
+ * 功能：求解 3x3 局部资源贪心任务。
+ * 输入：
+ *   - source：包含 3x3 grid 的 JSON。
+ * 输出：
+ *   - 返回路径、累计资源、路径长度、ratio、每轮 decision trace 和前端播放帧。
+ * 关键逻辑：
+ *   - 该算法是局部结构感知的简单贪心，不是 DP，不枚举所有路径，不保证任意 3x3 全局最优。
+ *   - 每轮只计算四邻域局部束 reward，并用累计 ratio guard 防止继续拾取低性价比资源拉低总比值。
+ */
 Json solveResourcePickupJson(const Json &source)
 {
     std::vector<std::vector<std::string>> grid;
     std::vector<ResourceCell> resources;
     Position start{kInvalid};
     parseResourceGrid(source, grid, start, resources);
-    if (resources.size() > 20) {
-        throw std::runtime_error("too many resource cells");
-    }
 
     Position current = start;
     int mask = 0;
     int resource = 0;
     int steps = 0;
+    std::string stopReason = "no valid move";
     std::vector<Position> fullPath{start};
-    Json greedyRounds = Json::array();
+    Json decisions = Json::array();
 
     while (true) {
         const double currentRatio = steps == 0 ? 0.0 : static_cast<double>(resource) / steps;
-        std::vector<GreedyCandidate> candidates;
-        GreedyCandidate best;
+        std::vector<BundleEval> candidates;
+        BundleEval best = chooseBestBundleGreedy(grid, current, resources, mask, candidates);
 
-        int candidateIndex = 0;
-        for (int row = 0; row < 3; ++row) {
-            for (int col = 0; col < 3; ++col) {
-                const Position target{row, col};
-                if (target == current || grid[row][col] == "#") continue;
-
-                GreedyCandidate cellBest;
-                cellBest.candidateIndex = candidateIndex++;
-                cellBest.target = target;
-                for (const auto &path : allShortestPaths(grid, current, target)) {
-                    if (path.size() <= 1) continue;
-                    int nextMask = mask;
-                    const int delta = pathDelta(path, resources, mask, nextMask);
-                    const int projectedSteps = steps + static_cast<int>(path.size()) - 1;
-                    const int projectedResource = resource + delta;
-                    const double score = projectedSteps == 0 ? 0.0 : static_cast<double>(projectedResource) / projectedSteps;
-                    GreedyCandidate pathCandidate{cellBest.candidateIndex,
-                                                  target,
-                                                  path,
-                                                  delta,
-                                                  cleanupScore(grid, path, resources, mask),
-                                                  nextMask,
-                                                  projectedResource,
-                                                  projectedSteps,
-                                                  nextMask != mask,
-                                                  score};
-                    if (betterCandidate(cellBest, pathCandidate)) cellBest = pathCandidate;
-                }
-                candidates.push_back(cellBest);
-                if (betterCandidate(best, cellBest)) best = cellBest;
-            }
+        const bool hasBest = best.valid;
+        if (!hasBest) {
+            stopReason = "no valid move";
+        } else if (best.bundleValue <= 0) {
+            stopReason = "no positive bundle";
+        } else {
+            best.projectedResource = resource + best.bundleValue;
+            best.projectedSteps = steps + best.bundleLen;
+            best.projectedRatio = best.projectedSteps == 0 ? 0.0 :
+                static_cast<double>(best.projectedResource) / best.projectedSteps;
+            const bool allowed = steps == 0 ? best.bundleValue > 0 : best.projectedRatio + kEps >= currentRatio;
+            if (!allowed) stopReason = "ratio would decrease";
         }
 
-        const bool canImprove = best.candidateIndex >= 0 && best.actionable && best.score + 1e-12 >= currentRatio;
-        greedyRounds.push_back({{"step", steps},
-                                {"current", {{"row", current.first}, {"col", current.second}}},
-                                {"resource", resource},
-                                {"currentRatio", currentRatio},
-                                {"decision", canImprove ? "move" : "stop"},
-                                {"selected", best.candidateIndex},
-                                {"candidates", candidatesJson(candidates, canImprove ? best.candidateIndex : -1)}});
-        if (!canImprove) break;
+        const bool allowedByRatioGuard = hasBest && best.bundleValue > 0 &&
+            (steps == 0 || best.projectedRatio + kEps >= currentRatio);
+        for (auto &candidate : candidates) {
+            candidate.projectedResource = resource + candidate.bundleValue;
+            candidate.projectedSteps = steps + candidate.bundleLen;
+            candidate.projectedRatio = candidate.projectedSteps == 0 ? 0.0 :
+                static_cast<double>(candidate.projectedResource) / candidate.projectedSteps;
+        }
 
-        for (size_t i = 1; i < best.path.size(); ++i) fullPath.push_back(best.path[i]);
-        current = best.target;
-        mask = best.nextMask;
-        resource += best.delta;
-        steps += static_cast<int>(best.path.size()) - 1;
-    }
+        decisions.push_back({{"step", steps},
+                             {"position", {{"row", current.first}, {"col", current.second}}},
+                             {"current", {{"row", current.first}, {"col", current.second}}},
+                             {"resource", resource},
+                             {"currentRatio", currentRatio},
+                             {"currentRatioBefore", currentRatio},
+                             {"decision", allowedByRatioGuard ? "move" : "stop"},
+                             {"selected", allowedByRatioGuard ? best.candidateIndex : -1},
+                             {"chosenTarget",
+                              hasBest ? Json({{"row", best.target.first}, {"col", best.target.second}}) : Json(nullptr)},
+                             {"deltaR", hasBest ? best.bundleValue : 0},
+                             {"deltaL", hasBest ? best.bundleLen : 0},
+                             {"projectedRatio", hasBest ? best.projectedRatio : currentRatio},
+                             {"allowedByRatioGuard", allowedByRatioGuard},
+                             {"executedBundlePath", allowedByRatioGuard ? pathJson(best.bundlePath) : Json::array()},
+                             {"candidates", candidatesJson(candidates, allowedByRatioGuard ? best.candidateIndex : -1)}});
 
-    Json pathJson = Json::array();
-    for (const auto &pos : fullPath) {
-        pathJson.push_back({{"row", pos.first}, {"col", pos.second}});
+        if (!allowedByRatioGuard) break;
+
+        executeBundlePath(best.bundlePath, resources, fullPath, mask, resource, steps);
+        current = fullPath.back();
     }
 
     int finalResource = 0;
     int goldTriggers = 0;
     int trapTriggers = 0;
     Json frames = buildFrames(grid, fullPath, resources, finalResource, goldTriggers, trapTriggers);
-    attachFrameDebug(frames, greedyRounds);
+    attachFrameDebug(frames, decisions);
     const int finalSteps = fullPath.empty() ? 0 : static_cast<int>(fullPath.size()) - 1;
     const double ratio = finalSteps == 0 ? 0.0 : static_cast<double>(finalResource) / finalSteps;
 
     Json result{{"ok", true},
                 {"mode", "resource-pickup-3x3"},
-                {"algorithm", "greedy best-R/L among all shortest paths"},
-                {"greedy_formula", "for each other cell t, reward(t)=max over shortest paths p from current to t of (R+DeltaR(p))/(L+len(p)); tie by cleanup score; move if selected reward>=current R/L and path triggers new resource"},
+                {"algorithm", "3x3 local bundle greedy with cumulative ratio guard"},
+                {"greedy_formula",
+                 "BundleValue(x)=cellValue(x)+50*adjGoldCount(x); BundleLen(x)=adjGoldCount(x)==0?1:2*adjGoldCount(x); BundleScore=BundleValue/BundleLen; execute only if projected cumulative R/L does not decrease"},
                 {"case_id", source.value("case_id", 0)},
                 {"grid", grid},
                 {"start", {{"row", start.first}, {"col", start.second}}},
-                {"end", pathJson.empty() ? Json(nullptr) : pathJson.back()},
-                {"path", pathJson},
+                {"end", pathJson(fullPath).empty() ? Json(nullptr) : pathJson(fullPath).back()},
+                {"path", pathJson(fullPath)},
                 {"frames", frames},
                 {"events", Json::array()},
-                {"greedy_rounds", greedyRounds},
+                {"greedy_rounds", decisions},
+                {"decisions", decisions},
+                {"stopReason", stopReason},
                 {"resource", finalResource},
+                {"totalResource", finalResource},
                 {"steps", finalSteps},
+                {"pathLength", finalSteps},
                 {"score_ratio", ratio},
+                {"ratio", ratio},
                 {"average_resource_per_step", ratio},
                 {"finished", true},
                 {"gold_triggers", goldTriggers},
                 {"trap_triggers", trapTriggers},
                 {"resource_cell_count", resources.size()},
-                {"rules", {{"endpoint", "arbitrary"},
-                           {"trigger", "G/T trigger only once"},
-                           {"moves", "up/down/left/right"},
-                           {"objective", "greedily improve resource / path length; stopping is allowed"}}}};
+                {"complexity",
+                 {{"time", "O(1) for fixed 3x3: each round checks at most 4 candidates and 4 neighbors"},
+                  {"space", "O(1) for fixed 3x3"}}},
+                {"limitations",
+                 "local greedy only; no DP, no state compression, no all-path enumeration, no global optimality guarantee"},
+                {"rules",
+                 {{"endpoint", "stops when no positive bundle or cumulative ratio would decrease"},
+                  {"trigger", "G/T trigger only once"},
+                  {"moves", "up/right/down/left"},
+                  {"objective", "local bundle reward with cumulative resource/path-length ratio guard"}}}};
     return result;
 }
 

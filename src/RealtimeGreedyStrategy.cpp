@@ -288,8 +288,8 @@ private:
                     localMap_.clearBoss(knownBosses_[i]);
                 // 若不可获胜但当前资源足够支付复活金币，扣除金币并设置待复活标志，
                 // 下一帧 run() 会检测 pendingRevive_ 并传送回起点。
-                } else if (state_.resource >= coinConsumption_) {
-                    state_.resource -= coinConsumption_;
+                } else if (state_.resource >= coinConsumption_ * 50) {
+                    state_.resource -= coinConsumption_ * 50;
                     pendingRevive_ = true;
                 // 资源不足且 Boss 战无法获胜则游戏结束。
                 } else {
@@ -423,13 +423,24 @@ private:
      *   - 对每个可从当前侧邻接到的 Boss，从 Boss 本体开始 BFS，凡是不在“删 Boss 可达集合”中的可走格都视为 Boss-gated 区域。
      *   - 该集合只使用 localMap_ 和已观察 Boss，不读取真实出口位置；用于把这些目标的 |C| 按 Amax 处理。
      */
+    // 目标：找出所有"必须穿过至少一个 Boss 才能到达"的已知可走格。
+    // 这些格子在 I_proxy 中享有面积加成（bossEdgeAreaBonus），因为到达它们意味着推进通关。
+    //
+    // 算法分三步：
+    //   (A) BFS 从当前位置出发，视所有 Boss 为墙 → reachableWithoutBoss（不穿 Boss 可达区）
+    //   (B) 找出哪些 Boss 与 reachableWithoutBoss 接壤（能从当前侧触发）
+    //   (C) 对每个接壤 Boss，BFS 穿过它 → 差集 = 必须穿 Boss 才能到的区域
     std::set<Position> bossGatedAreaMaxTargets(Position localCurrent) const
     {
+        // 将已知 Boss 本体坐标放入集合，供 O(1) 查询。
         std::set<Position> bossSet(knownBosses_.begin(), knownBosses_.end());
+        // 可走条件：不是 Boss 本体，且满足 localMap 的通用通行规则（已观察、非墙）。
         const auto walkableWithoutBoss = [&](Position pos) {
             return !bossSet.count(pos) && localMap_.isWalkableForPlanning(pos);
         };
 
+        // ===== 步骤 A：BFS 找"不穿 Boss 就能到达"的全部格子 =====
+        // 视所有 Boss 本体为墙，从当前位置做洪水填充。
         std::set<Position> reachableWithoutBoss;
         std::queue<Position> queue;
         if (walkableWithoutBoss(localCurrent)) {
@@ -441,15 +452,24 @@ private:
             queue.pop();
             for (const auto [dr, dc] : kDirs) {
                 const Position next{current.first + dr, current.second + dc};
+                // 已访问或不可走（含 Boss 本体）→ 跳过。
                 if (reachableWithoutBoss.count(next) || !walkableWithoutBoss(next)) continue;
                 reachableWithoutBoss.insert(next);
                 queue.push(next);
             }
         }
+        // 此时 reachableWithoutBoss = 当前位置能到的所有"和平区域"。
 
+        // ===== 步骤 B + C：对每个 Boss，找"穿过去后才能到达"的区域 =====
         std::set<Position> gated;
         for (const auto &boss : knownBosses_) {
+            // Boss 本体自身的通行规则检查：已被击败的 Boss 已在 localMap 中标记为可通行，
+            // 跳过它们（不需要穿过已击败的 Boss）。
             if (!localMap_.isWalkableForPlanning(boss)) continue;
+
+            // 判断 Boss 是否与"不穿 Boss 可达区"接壤。
+            // 只要 Boss 四个邻居格中至少有一个在 reachableWithoutBoss 中，
+            // 就说明 AI 能从当前位置走到 Boss 旁边并触发战斗。
             bool bossReachableFromCurrentSide = false;
             for (const auto [dr, dc] : kDirs) {
                 if (reachableWithoutBoss.count({boss.first + dr, boss.second + dc})) {
@@ -457,8 +477,10 @@ private:
                     break;
                 }
             }
+            // Boss 不接壤 → 当前无法触发 → 跳过（可能在迷宫另一端，还走不到）。
             if (!bossReachableFromCurrentSide) continue;
 
+            // 穿过该 Boss 做 BFS：从 Boss 本体出发，探索"击败 Boss 后能到达"的区域。
             std::set<Position> throughBossVisited;
             std::queue<Position> throughBossQueue;
             throughBossVisited.insert(boss);
@@ -466,9 +488,14 @@ private:
             while (!throughBossQueue.empty()) {
                 const Position current = throughBossQueue.front();
                 throughBossQueue.pop();
+                // 当前格不在"不穿 Boss 可达区"中 → 说明必须穿过 Boss 才能到这里 → 记入 gated。
                 if (!reachableWithoutBoss.count(current)) gated.insert(current);
                 for (const auto [dr, dc] : kDirs) {
                     const Position next{current.first + dr, current.second + dc};
+                    // 三种情况跳过：
+                    // (a) 已访问过 → 避免循环
+                    // (b) 是另一个 Boss 本体 → 不跨 Boss（只穿过当前这一个）
+                    // (c) 不可通行（墙/未观察）
                     if (throughBossVisited.count(next) || (bossSet.count(next) && next != boss) ||
                         !localMap_.isWalkableForPlanning(next)) {
                         continue;
@@ -478,6 +505,9 @@ private:
                 }
             }
         }
+        // gated = 所有必须至少穿过一个 Boss 才能到达的已知可走格集合。
+        // 这些候选在 evaluate() 中会触发 I_proxy 的 forceAreaMax=true，
+        // 按 bossEdgeAreaBonus(=15) 而不是普通 A_max(=12) 计算面积贡献。
         return gated;
     }
 

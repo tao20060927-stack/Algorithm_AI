@@ -75,6 +75,26 @@ int main()
     require(result["path"].size() == 5, "case2 path size");
     require(result["path"][1]["row"].get<int>() == 1 && result["path"][1]["col"].get<int>() == 2,
             "case2 should move right first");
+    require(result.value("stopReason", "") == "no positive bundle", "case2 should stop after clearing right bundle");
+
+    const Json ratioGuard = Json::parse(R"JSON({
+      "case_id": 2,
+      "grid": [["G","T","G"],[".","P","T"],[".","T","G"]]
+    })JSON");
+    Json guardResult = runCase(ratioGuard, 50, 2, 25.0);
+    require(guardResult.value("stopReason", "") == "ratio would decrease",
+            "ratio guard case should stop before lowering cumulative ratio");
+    require(guardResult["path"][1]["row"].get<int>() == 1 && guardResult["path"][1]["col"].get<int>() == 0,
+            "ratio guard case should move left first");
+
+    const Json twoBundles = Json::parse(R"JSON({
+      "case_id": 2,
+      "grid": [["G","T","G"],["T","G","T"],["P","T","G"]]
+    })JSON");
+    Json twoBundleResult = runCase(twoBundles, 140, 8, 17.5);
+    require(twoBundleResult["decisions"].size() >= 3, "two-bundle case should include two moves and one stop");
+    require(twoBundleResult["path"][1]["row"].get<int>() == 1 && twoBundleResult["path"][1]["col"].get<int>() == 0,
+            "two-bundle case should choose upper T first by direction tie-break");
 
     runCase(Json::parse(R"JSON({"grid":[[".",".","."],["T","P","T"],[".",".","."]]})JSON"), 0, 0, 0.0);
     runCase(Json::parse(R"JSON({"grid":[[".",".","."],[".","P","G"],[".",".","."]]})JSON"), 50, 1, 50.0);

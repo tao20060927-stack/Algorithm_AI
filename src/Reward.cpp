@@ -342,12 +342,20 @@ MapPoseEstimator::MapPoseEstimator()
  */
 void MapPoseEstimator::initialize()
 {
+    // 清空所有候选假设。
     hypotheses_.clear();
+    // 创建唯一的默认假设：入口在 15×15 中心 {7,7}，面向下，评分为 0，标记为可行。
+    // 此时 maskActive_=false，掩码未启用 — AI 假设自己在迷宫内部某处，不做边界裁剪。
     hypotheses_.push_back({{kEstimatedSize / 2, kEstimatedSize / 2}, Direction::Down, 0.0, true});
+    // 将该唯一假设设为当前最优。
     best_ = hypotheses_[0];
+    // 清空已观察估计坐标集 — 掩码未激活，observedEstimated_ 为空是合理的。
     observedEstimated_.clear();
+    // 出生边缘种子尚未检测，等待首次 update() 调用。
     maskSeeded_ = false;
+    // 掩码未激活 — I_proxy 的 BFS 不会被 15×15 边界裁剪。
     maskActive_ = false;
+    // 默认认为 AI 出生在迷宫内部（无边缘信息）。
     seedKind_ = MaskSeedKind::Internal;
 }
 

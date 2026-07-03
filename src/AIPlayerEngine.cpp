@@ -282,9 +282,9 @@ Json buildResult(const MazeData &data, const std::vector<Position> &path, const 
                 frameEvent = "boss";
                 result["events"].push_back({{"step", step}, {"type", "boss"}, {"result", boss}});
                 bossCleared = true;
-            } else if (resource >= reviveCost) {
-                paidReviveCost = reviveCost;
-                resource -= reviveCost;
+            } else if (resource >= reviveCost * 50) {
+                paidReviveCost = reviveCost * 50;
+                resource -= reviveCost * 50;
                 frameEvent = "boss_revive";
                 result["events"].push_back(
                     {{"step", step}, {"type", "boss_revive"}, {"reviveCost", reviveCost}, {"result", boss}});

@@ -46,7 +46,7 @@ textarea{height:300px;resize:vertical;border:1px solid #d7dde5;border-radius:6px
 .main{display:grid;grid-template-rows:auto minmax(0,1fr);gap:14px;padding:18px;min-width:0}
 .stats{display:grid;grid-template-columns:repeat(4,minmax(110px,1fr));gap:10px}.stat,.panel{background:#fff;border:1px solid #d7dde5;border-radius:8px;padding:11px}
 .stat span{display:block;color:#667085;font-size:12px}.stat strong{font-size:22px;display:block;margin-top:3px}.board-wrap{background:#fff;border:1px solid #d7dde5;border-radius:8px;padding:16px;display:grid;place-items:center;overflow:auto}
-#board{display:grid;gap:2px;width:min(72vh,100%);max-width:740px;aspect-ratio:1/1}.cell{display:grid;place-items:center;border-radius:3px;min-width:0;min-height:0;font-weight:700;font-size:13px;border:1px solid rgba(0,0,0,.06)}
+#board{display:grid;gap:2px;max-width:740px}.cell{display:grid;place-items:center;border-radius:3px;min-width:0;min-height:0;width:100%;height:100%;font-weight:700;font-size:13px;line-height:1;border:1px solid rgba(0,0,0,.06)}
 .unknown{background:#111827;color:#111827}.wall{background:#263241}.road{background:#f8fafc}.start{background:#dbeafe;color:#1d4ed8}.exit{background:#16a34a;color:#fff}.gold{background:#f7c948}.trap{background:#e05d5d;color:#fff}.boss{background:#7c3aed;color:#fff}
 .path{outline:2px solid rgba(37,99,235,.55);outline-offset:-2px}.visible{filter:brightness(1.08)}.player{box-shadow:inset 0 0 0 3px #111827}
 .monitor{background:#fff;border:1px solid #d7dde5;border-radius:8px;padding:16px;overflow:auto;width:100%;height:100%}.hidden{display:none}.debug-grid{display:grid;grid-template-columns:repeat(6,minmax(90px,1fr));gap:8px;margin-bottom:12px}.debug-grid div{border:1px solid #e1e7ef;border-radius:6px;padding:8px;background:#fbfcfe}.debug-grid span{display:block;color:#667085;font-size:11px}.debug-grid strong{font-size:16px}.diagnosis{border:1px solid #d7dde5;border-radius:6px;padding:10px;margin-bottom:12px;background:#f8fafc;color:#17202c}.debug-table{width:100%;border-collapse:collapse;font-size:12px}.debug-table th,.debug-table td{border-bottom:1px solid #e1e7ef;padding:7px;text-align:right;white-space:nowrap}.debug-table th:first-child,.debug-table td:first-child{text-align:left}.debug-table tr.selected{background:#ecfdf3}.debug-table tr.gold-row{box-shadow:inset 3px 0 0 #f7c948}
@@ -92,19 +92,39 @@ function resetFrameCaches(){renderState.result=null;renderState.preview=null;ren
 function applyMazeData(data,signature){const changed=signature!==mazeSignature;if(changed){resultCache.clear();result=null;idx=0;renderState.boardKey="";renderState.cells=[];renderState.bossEventResult=undefined;resetFrameCaches()}maze=Array.isArray(data.maze)?data.maze:data.grid;mazeSignature=signature;return changed}
 function call(name,...args){const id=requestSeq++;setState("运行中");return new Promise((resolve,reject)=>{pendingRequests.set(id,{resolve,reject});chrome.webview.postMessage({id,name,args})})}
 chrome.webview.addEventListener("message",event=>{const msg=event.data||{},pending=pendingRequests.get(msg.id);if(!pending)return;pendingRequests.delete(msg.id);if(msg.ok)pending.resolve(msg.result);else pending.reject(new Error(msg.error||"运行失败"))});
+// 棋盘按整数物理像素计算格子尺寸，避免 1fr 和 Windows 缩放产生的小数像素被浏览器分摊。
+function layoutBoard(){
+if(!maze)return;
+const board=$("board"),wrap=$("boardView"),rows=maze.length,cols=maze[0].length,maxBoard=740,dpr=window.devicePixelRatio||1;
+const style=getComputedStyle(wrap);
+const wrapW=wrap.clientWidth-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight);
+const wrapH=wrap.clientHeight-parseFloat(style.paddingTop)-parseFloat(style.paddingBottom);
+const fallback=Math.min(window.innerHeight*.72,maxBoard);
+const availableW=Math.min(wrapW>0?wrapW:fallback,maxBoard);
+const availableH=Math.min(wrapH>0?wrapH:fallback,maxBoard);
+const gapPx=Math.max(1,Math.round(2*dpr));
+const availWPx=Math.floor(availableW*dpr),availHPx=Math.floor(availableH*dpr);
+const cellPx=Math.max(8,Math.floor(Math.min((availWPx-gapPx*(cols-1))/cols,(availHPx-gapPx*(rows-1))/rows)));
+const cellSize=cellPx/dpr,gap=gapPx/dpr;
+board.style.gap=`${gap}px`;
+board.style.gridTemplateColumns=`repeat(${cols},${cellSize}px)`;
+board.style.gridTemplateRows=`repeat(${rows},${cellSize}px)`;
+board.style.width=`${(cols*cellPx+gapPx*(cols-1))/dpr}px`;
+board.style.height=`${(rows*cellPx+gapPx*(rows-1))/dpr}px`
+}
 // 棋盘格只在迷宫变化时创建；播放过程中只更新已有格子的 class 和文字。
 function ensureBoard(){
 if(!maze)return;
 const rows=maze.length,cols=maze[0].length,key=`${mazeSignature}:${rows}x${cols}`;
-if(renderState.boardKey==key&&renderState.cells.length==rows*cols)return;
+if(renderState.boardKey==key&&renderState.cells.length==rows*cols){layoutBoard();return}
 const board=$("board"),fragment=document.createDocumentFragment();
-board.style.gridTemplateColumns=`repeat(${cols},1fr)`;
-board.style.aspectRatio=`${cols}/${rows}`;
 renderState.cells=[];
 for(let i=0;i<rows;i++)for(let j=0;j<cols;j++){const d=document.createElement("div");d.className="cell unknown";fragment.appendChild(d);renderState.cells.push(d)}
 board.replaceChildren(fragment);
+layoutBoard();
 renderState.boardKey=key
 }
+window.addEventListener("resize",layoutBoard);
 // observed/path 都按播放方向增量扩展；回退或切换结果时才从当前帧重新累计。
 function ensureFrameCaches(preview,frameIndex){
 const path=result?.path||[];
@@ -180,7 +200,7 @@ const f=result?.frames?.[idx],d=f?.debug;
 $("debugSummary").innerHTML=d?`<div class="debug-grid"><div><span>决策</span><strong>${d.decision}</strong></div><div><span>${d.resourcePickup?"当前R/L":"alpha"}</span><strong>${fmt(d.resourcePickup?d.currentRatio:d.alpha)}</strong></div><div><span>${d.resourcePickup?"资源":"qEff"}</span><strong>${fmt(d.resourcePickup?d.resource:d.qEff)}</strong></div><div><span>${d.resourcePickup?"步数":"观察率"}</span><strong>${d.resourcePickup?d.step:fmt((d.observedRatio||0)*100,1)+"%"}</strong></div><div><span>当前位置</span><strong>${posText(d.resourcePickup?d.current:d.realCurrent)}</strong></div><div><span>选中目标</span><strong>${posText((d.candidates||[]).find(c=>c.selected)?.target||d.selectedReal)}</strong></div></div>`:"";
 $("debugDiagnosis").textContent=analyzeDebug(d,f,visibleCellsAt(f));
 if(!d){$("debugTable").innerHTML="";return}
-if(d.resourcePickup){const rows=[...(d.candidates||[])].sort((a,b)=>b.score-a.score).map(c=>`<tr class="${c.selected?"selected ":""}${c.delta>0?"gold-row":""}"><td>${c.selected?"* ":""}${c.actionable?"资源":"空地"}</td><td>${posText(c.target)}</td><td>${c.pathLen}</td><td>${c.delta}</td><td>${c.cleanup}</td><td>${c.projectedResource}</td><td>${c.projectedSteps}</td><td>${fmt(c.score)}</td><td>${c.actionable?"是":"否"}</td></tr>`).join("");$("debugDiagnosis").textContent=d.decision=="move"?"资源贪心选择当前 R/L 不下降且会触发新资源的最佳候选。":"没有候选路径能在触发新资源的同时保持或提升当前 R/L，因此停止。";$("debugTable").innerHTML=`<table class="debug-table"><thead><tr><th>目标</th><th>坐标</th><th>len</th><th>deltaR</th><th>cleanup</th><th>projR</th><th>projSteps</th><th>reward R/L</th><th>触发资源</th></tr></thead><tbody>${rows}</tbody></table>`;return}
+if(d.resourcePickup){const rows=[...(d.candidates||[])].sort((a,b)=>b.score-a.score).map(c=>`<tr class="${c.selected?"selected ":""}${c.bundleValue>0?"gold-row":""}"><td>${c.selected?"* ":""}${c.cell||" "}</td><td>${posText(c.target)}</td><td>${c.cellValue}</td><td>${c.adjGoldCount}</td><td>${c.bundleValue}</td><td>${c.bundleLen}</td><td>${fmt(c.bundleScore)}</td><td>${fmt(c.projectedRatio)}</td><td>${c.actionable?"是":"否"}</td></tr>`).join("");$("debugDiagnosis").textContent=d.decision=="move"?"3x3 局部束贪心：只比较当前位置四邻域，且通过累计 R/L 保护。":"已停止：没有正收益局部束，或下一段会降低累计 R/L。";$("debugTable").innerHTML=`<table class="debug-table"><thead><tr><th>目标</th><th>坐标</th><th>cellValue</th><th>邻接G</th><th>BundleValue</th><th>BundleLen</th><th>BundleScore</th><th>projRatio</th><th>正收益</th></tr></thead><tbody>${rows}</tbody></table>`;return}
 if(d.pocket){const p=d.pocket,rs=(p.pocketResources||[]).map(x=>posText(x.real)).join(" ");const rows=[...(p.candidates||[])].sort((a,b)=>b.scoreFirst-a.scoreFirst).map(c=>`<tr class="${c.selected?"selected ":""}gold-row"><td>${c.selected?"* ":""}G</td><td>${posText(c.realTarget)}</td><td>${c.pathLen}</td><td>${c.deltaR}</td><td>${fmt(c.baseScore)}</td><td>${fmt(c.ownIproxy)}</td><td>${posText(c.realBestRemainingTarget)}</td><td>${fmt(c.bestRemainingIproxy)}</td><td>${fmt(c.remainI)}</td><td>${fmt(c.scoreFirst)}</td></tr>`).join("");$("debugTable").innerHTML=`<div class="diagnosis">pocketHub=${posText(p.realPocketHub)} pocketResources=${rs} chosen=${posText(p.realChosenPocketTarget)}</div><table class="debug-table"><thead><tr><th>目标</th><th>坐标</th><th>len</th><th>deltaR</th><th>Base</th><th>ownIproxy</th><th>bestRemain</th><th>bestRemainI</th><th>remainI</th><th>Score_first</th></tr></thead><tbody>${rows}</tbody></table>`;return}
 const rows=[...(d.candidates||[])].sort((a,b)=>b.score-a.score).map(c=>`<tr class="${c.selected?"selected ":""}${c.tile=="G"?"gold-row":""}"><td>${c.selected?"* ":""}${c.tile||" "}</td><td>${posText(c.realTarget)}</td><td>${fmt(c.score)}</td><td>${c.deltaR}</td><td>${fmt(c.Iproxy)}</td><td>${c.unknownComponentSum??0}</td><td>${(c.unknownComponents||[]).join("+")||"0"}</td><td>${fmt(c.tailGain)}</td><td>${fmt(c.qEff)}</td><td>${c.pathLen}</td><td>${fmt(c.marginPenalty)}</td><td>${c.projectedResource}</td></tr>`).join("");
 $("debugTable").innerHTML=`<table class="debug-table"><thead><tr><th>目标</th><th>坐标</th><th>score</th><th>deltaR</th><th>Iproxy</th><th>|C|合计</th><th>|C|明细</th><th>tailUB</th><th>qEff</th><th>len</th><th>margin</th><th>projR</th></tr></thead><tbody>${rows}</tbody></table>`;
@@ -238,6 +258,22 @@ void resizeWebView()
     RECT bounds;
     GetClientRect(g_hwnd, &bounds);
     g_controller->put_Bounds(bounds);
+}
+
+/**
+ * 功能：启用 Win32 桌面程序的高 DPI 感知。
+ * 输入：
+ *   - 无。
+ * 输出：
+ *   - 无返回值；系统不支持 Per-Monitor V2 时回退到系统 DPI 感知。
+ * 关键逻辑：
+ *   - WebView2 本身能清晰渲染文字，但如果宿主进程不是 DPI aware，Windows 会把整个窗口当作位图缩放，导致文字发虚。
+ */
+void enableDpiAwareness()
+{
+    if (!SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)) {
+        SetProcessDPIAware();
+    }
 }
 
 class AiHostObject final : public IDispatch {
@@ -428,6 +464,16 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpara
         case WM_SIZE:
             resizeWebView();
             return 0;
+        case WM_DPICHANGED: {
+            const auto *suggested = reinterpret_cast<const RECT *>(lparam);
+            if (suggested) {
+                SetWindowPos(hwnd, nullptr, suggested->left, suggested->top,
+                             suggested->right - suggested->left, suggested->bottom - suggested->top,
+                             SWP_NOZORDER | SWP_NOACTIVATE);
+            }
+            resizeWebView();
+            return 0;
+        }
         case WM_DESTROY:
             PostQuitMessage(0);
             return 0;
@@ -439,6 +485,7 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lpara
 
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
 {
+    enableDpiAwareness();
     CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     const wchar_t className[] = L"AIPlayerDesktopWindow";
     WNDCLASSW wc{};
